@@ -1,10 +1,32 @@
+use clap::Parser;
+use console::style;
 use google_tasks1::TasksHub;
 use hyper;
 use hyper_rustls;
+use simple_logger::SimpleLogger;
 use yup_oauth2::{InstalledFlowAuthenticator, InstalledFlowReturnMethod};
 
+use neorg_task_sync::run;
+use neorg_task_sync::Error;
+use neorg_task_sync::Opts;
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Error> {
+    let opts = Opts::parse();
+    SimpleLogger::new()
+        .with_level(opts.loglevel().to_level_filter())
+        .init()
+        .expect("could not set up logger");
+    log::trace!("opts: {opts:#?}");
+    if let Err(error) = run(&opts).await {
+        let label = style("Error:").bold().red();
+        eprintln!("{label} {error}");
+        std::process::exit(1);
+    };
+    Ok(())
+}
+
+async fn old_main() -> Result<(), Box<dyn std::error::Error>> {
     // Read application secret from a file. Sometimes it's easier to compile it directly into
     // the binary. The clientsecret file contains JSON like `{"installed":{"client_id": ... }}`
     let secret = yup_oauth2::read_application_secret("clientsecret.json")

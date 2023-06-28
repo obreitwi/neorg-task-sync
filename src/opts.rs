@@ -1,0 +1,75 @@
+use shadow_rs::shadow;
+shadow!(build);
+
+use clap::{crate_authors, crate_description, ArgAction, Args, ColorChoice, Parser, Subcommand};
+use clap_complete::Shell;
+use std::str;
+
+#[derive(Parser, Debug)]
+#[command(
+    version=build::CLAP_LONG_VERSION,
+    author=crate_authors!(),
+    about=crate_description!(),
+    infer_subcommands(true),
+    color(ColorChoice::Auto)
+) ]
+#[command(propagate_version = true)]
+pub struct Opts {
+    /// Make output more verbose.
+    #[arg(short, long, action = ArgAction::Count)]
+    pub verbose: u8,
+
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+impl Opts {
+    pub fn loglevel(&self) -> log::Level {
+        if self.verbose > 2 {
+            log::Level::Trace
+        } else if self.verbose > 1 {
+            log::Level::Debug
+        } else if self.verbose > 0 {
+            log::Level::Info
+        } else {
+            log::Level::Warn
+        }
+    }
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Show config
+    #[command(name = "config")]
+    Config(Config),
+
+    #[command(name = "generate")]
+    Generate(Generate),
+}
+
+#[derive(Args, Debug)]
+pub struct Config {}
+
+/// Generation-related commands
+#[derive(Args, Debug)]
+pub struct Generate {
+    /// What to generate
+    #[command(subcommand)]
+    pub target: GenerateTarget,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum GenerateTarget {
+    /// Generate markdown from help messages
+    #[command(name = "help-markdown")]
+    HelpMarkdown,
+
+    /// Copmletion script
+    Completion(CompletionOpts),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct CompletionOpts {
+    /// Shell to generate completions for
+    pub shell: Shell,
+}
