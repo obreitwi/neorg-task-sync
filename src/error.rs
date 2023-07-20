@@ -12,6 +12,9 @@ pub enum Error {
     },
 
     // INDIVIDUAL ERRORS
+    #[error("error logging in: {message}")]
+    Login { message: String },
+
     #[error("reading config: {source}")]
     Figment {
         #[from]

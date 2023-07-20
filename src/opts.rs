@@ -39,12 +39,29 @@ impl Opts {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Auth related commands
+    #[command(name = "auth")]
+    Auth(Auth),
+
     /// Show config
     #[command(name = "config")]
     Config(Config),
 
+    /// Generate completions
     #[command(name = "generate")]
     Generate(Generate),
+}
+
+#[derive(Args, Debug)]
+pub struct Auth {
+    #[command(subcommand)]
+    pub command: AuthCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AuthCommand {
+    #[command(name = "login")]
+    Login,
 }
 
 #[derive(Args, Debug)]
