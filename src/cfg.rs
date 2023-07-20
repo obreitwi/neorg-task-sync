@@ -18,7 +18,6 @@ pub struct Config {}
 const ERR_INVALID_UTF8: &str = "default path contains non-UTF8";
 
 const DIR: &str = "neorg-task-sync";
-const NAME: &str = "config";
 
 fn config_dir() -> Utf8PathBuf {
     Utf8Path::from_path(BASE_DIRS.config_dir())
@@ -27,17 +26,23 @@ fn config_dir() -> Utf8PathBuf {
         .join(DIR)
 }
 
-fn config_name() -> Utf8PathBuf {
-    config_dir().with_file_name(NAME).with_extension("yaml")
-}
-
-fn cache_name() -> Utf8PathBuf {
+fn cache_dir() -> Utf8PathBuf {
     Utf8Path::from_path(BASE_DIRS.cache_dir())
         .expect(ERR_INVALID_UTF8)
         .to_owned()
         .join(DIR)
-        .with_file_name(NAME)
-        .with_extension("json")
+}
+
+fn config_name() -> Utf8PathBuf {
+    config_dir().with_file_name("config.yaml")
+}
+
+fn config_fallback_name() -> Utf8PathBuf {
+    config_dir().with_file_name("config-fallback.json")
+}
+
+pub fn tokencache_name() -> Utf8PathBuf {
+    cache_dir().with_file_name("tokencache.json")
 }
 
 impl Config {
@@ -45,7 +50,7 @@ impl Config {
         Ok(Figment::new()
             .merge(Yaml::file(config_name()))
             .merge(Env::prefixed("NEORG_TASK_SYNC_"))
-            .join(Json::file(cache_name()))
+            .join(Json::file(config_fallback_name()))
             .extract()?)
     }
 }
