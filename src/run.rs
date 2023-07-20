@@ -1,7 +1,7 @@
 use clap::CommandFactory;
 use clap_complete::generate;
 
-use crate::cfg::Config;
+use crate::cfg::CFG;
 use crate::error::Error;
 use crate::opts::Command;
 use crate::opts::GenerateTarget;
@@ -10,8 +10,7 @@ use crate::opts::Opts;
 pub async fn run(opts: &Opts) -> Result<(), Error> {
     match opts.command {
         Command::Config(ref _cfg) => {
-            let config = Config::load()?;
-            eprintln!("{:#?}", config);
+            eprintln!("{:#?}", *CFG);
         }
 
         Command::Generate(ref gen) => match gen.target {
