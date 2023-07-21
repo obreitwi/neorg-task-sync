@@ -74,6 +74,9 @@ pub struct Config {
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
+    #[command(name = "show")]
+    Show,
+
     #[command(name = "tasklist")]
     TaskList(TaskList),
 }
@@ -81,7 +84,7 @@ pub enum ConfigCommand {
 #[derive(Args, Debug)]
 pub struct TaskList {
     #[arg(value_enum)]
-    operation: ConfigOperation,
+    pub operation: ConfigOperation,
 }
 
 #[derive(ValueEnum, Debug, Clone)]
@@ -94,6 +97,16 @@ pub enum ConfigOperation {
 
     /// List possible values current value.
     List,
+}
+
+impl ConfigOperation {
+    pub fn to_string(&self) -> String {
+        match self {
+            ConfigOperation::Get => "get".into(),
+            ConfigOperation::Set => "set".into(),
+            ConfigOperation::List => "list".into(),
+        }
+    }
 }
 
 /// Generation-related commands

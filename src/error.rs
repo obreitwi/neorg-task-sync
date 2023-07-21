@@ -27,12 +27,11 @@ pub enum Error {
         source: io::Error,
     },
 
-    #[error("{arg} not supported for {command}: {reason}")]
-    InvalidArgument {
-        arg: String,
-        command: String,
-        reason: String,
-    },
+    #[error("not found: {what}")]
+    NotFound { what: String },
+
+    #[error("'{arg}' not supported for '{command}'")]
+    NotSupported { arg: String, command: String },
 
     #[error("oauth2: {source}")]
     OAuth2 {
@@ -59,7 +58,7 @@ pub trait WrapError {
 
     fn during(self, context: &str) -> Result<Self::OkT, WrappedError>;
 
-    fn during_f<'a, F: FnOnce() -> &'a str>(self, context_f: F) -> Result<Self::OkT, WrappedError>;
+    fn during_f<F: FnOnce() -> Arc<str>>(self, context_f: F) -> Result<Self::OkT, WrappedError>;
 }
 
 impl<T, E> WrapError for Result<T, E>
@@ -76,9 +75,9 @@ where
     }
 
     // TODO: Improve to be actually useful
-    fn during_f<'a, F: FnOnce() -> &'a str>(self, context_f: F) -> Result<Self::OkT, WrappedError> {
+    fn during_f<F: FnOnce() -> Arc<str>>(self, context_f: F) -> Result<Self::OkT, WrappedError> {
         self.map_err(|err| WrappedError {
-            context: Arc::from(context_f()),
+            context: context_f(),
             what: Box::new(err.into()),
         })
     }
