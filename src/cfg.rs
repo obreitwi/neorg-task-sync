@@ -13,7 +13,9 @@ pub static CFG: Lazy<Config> = Lazy::new(|| Config::load().during("reading confi
 static BASE_DIRS: Lazy<BaseDirs> = Lazy::new(|| BaseDirs::new().expect("failed to get base dirs"));
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct Config {}
+pub struct Config {
+    pub tasklist: String,
+}
 
 const ERR_INVALID_UTF8: &str = "default path contains non-UTF8";
 
