@@ -1,14 +1,16 @@
+use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper;
+use hyper::client::HttpConnector;
 use hyper_rustls;
+use hyper_rustls::HttpsConnector;
 
 use crate::auth::Authenticator;
 use crate::error::Error;
 use crate::error::WrapError;
 
-async fn get_tasklists(auth: Authenticator) -> Result<(), Error> {
-    // TODO: move to own function
-    let hub = TasksHub::new(
+fn create_hub(auth: Authenticator) -> TasksHub<HttpsConnector<HttpConnector>> {
+    TasksHub::new(
         hyper::Client::builder().build(
             hyper_rustls::HttpsConnectorBuilder::new()
                 .with_native_roots()
@@ -17,7 +19,11 @@ async fn get_tasklists(auth: Authenticator) -> Result<(), Error> {
                 .build(),
         ),
         auth,
-    );
+    )
+}
+
+pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> {
+    let hub = create_hub(auth);
 
     let (response, tasklists) = hub
         .tasklists()
@@ -26,13 +32,27 @@ async fn get_tasklists(auth: Authenticator) -> Result<(), Error> {
         .await
         .during("getting task lists")?;
 
-    println!("Got response:\n{response:#?}");
+    log::debug!("got response:\n{response:#?}");
 
-    if let Some(lists) = tasklists.items.as_ref() {
-        for (i, list) in lists.iter().enumerate() {
-            println!("#{idx}: {list:#?}", idx = i + 1);
-        }
+    tasklists.items.ok_or(Error::NotFound {
+        what: "tasklists".into(),
+    })
+}
+
+pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
+    let maxlen = tasklists
+        .iter()
+        .map(|tl| tl.id.as_ref().map(|t| t.len()).unwrap_or(0))
+        .max()
+        .unwrap_or(0);
+    for tl in tasklists.iter() {
+        let id = tl.id.as_ref().ok_or(Error::NotFound {
+            what: "id for tasklist".into(),
+        })?;
+        let title = tl.title.as_ref().ok_or(Error::NotFound {
+            what: "title for tasklist".into(),
+        })?;
+        println!("{id:<maxlen$} {title}");
     }
-
     Ok(())
 }
