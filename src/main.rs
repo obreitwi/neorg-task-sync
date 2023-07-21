@@ -13,7 +13,7 @@ async fn main() -> Result<(), Error> {
         .with_level(opts.loglevel().to_level_filter())
         .init()
         .expect("could not set up logger");
-    log::trace!("opts: {opts:#?}");
+    log::trace!("parsed command line arguments: {opts:#?}");
     if let Err(error) = run(&opts).await {
         let label = style("Error:").bold().red();
         eprintln!("{label} {error}");
