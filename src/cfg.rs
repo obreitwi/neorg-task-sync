@@ -34,15 +34,19 @@ fn cache_dir() -> Utf8PathBuf {
 }
 
 fn config_name() -> Utf8PathBuf {
-    config_dir().with_file_name("config.yaml")
+    config_dir().join("config.yaml")
 }
 
 fn config_fallback_name() -> Utf8PathBuf {
-    config_dir().with_file_name("config-fallback.json")
+    config_dir().join("config-fallback.json")
+}
+
+pub fn clientsecret_name() -> Utf8PathBuf {
+    config_dir().join("clientsecret.json")
 }
 
 pub fn tokencache_name() -> Utf8PathBuf {
-    cache_dir().with_file_name("tokencache.json")
+    cache_dir().join("tokencache.json")
 }
 
 impl Config {

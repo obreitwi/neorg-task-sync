@@ -1,7 +1,9 @@
 use shadow_rs::shadow;
 shadow!(build);
 
-use clap::{crate_authors, crate_description, ArgAction, Args, ColorChoice, Parser, Subcommand};
+use clap::{
+    crate_authors, crate_description, ArgAction, Args, ColorChoice, Parser, Subcommand, ValueEnum,
+};
 use clap_complete::Shell;
 use std::str;
 
@@ -65,7 +67,34 @@ pub enum AuthCommand {
 }
 
 #[derive(Args, Debug)]
-pub struct Config {}
+pub struct Config {
+    #[command(subcommand)]
+    pub command: ConfigCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ConfigCommand {
+    #[command(name = "tasklist")]
+    TaskList(TaskList),
+}
+
+#[derive(Args, Debug)]
+pub struct TaskList {
+    #[arg(value_enum)]
+    operation: ConfigOperation,
+}
+
+#[derive(ValueEnum, Debug, Clone)]
+pub enum ConfigOperation {
+    /// Get current value.
+    Get,
+
+    /// Set current value.
+    Set,
+
+    /// List possible values current value.
+    List,
+}
 
 /// Generation-related commands
 #[derive(Args, Debug)]

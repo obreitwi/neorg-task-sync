@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{io, sync::Arc};
 
 use thiserror::Error;
 
@@ -19,6 +19,31 @@ pub enum Error {
     Figment {
         #[from]
         source: figment::Error,
+    },
+
+    #[error("i/o: {source}")]
+    IO {
+        #[from]
+        source: io::Error,
+    },
+
+    #[error("{arg} not supported for {command}: {reason}")]
+    InvalidArgument {
+        arg: String,
+        command: String,
+        reason: String,
+    },
+
+    #[error("oauth2: {source}")]
+    OAuth2 {
+        #[from]
+        source: yup_oauth2::Error,
+    },
+
+    #[error("google tasks api: {source}")]
+    TasksAPI {
+        #[from]
+        source: google_tasks1::Error,
     },
 }
 
@@ -50,6 +75,7 @@ where
         })
     }
 
+    // TODO: Improve to be actually useful
     fn during_f<'a, F: FnOnce() -> &'a str>(self, context_f: F) -> Result<Self::OkT, WrappedError> {
         self.map_err(|err| WrappedError {
             context: Arc::from(context_f()),
