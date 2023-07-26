@@ -1,4 +1,5 @@
-use std::{io, sync::Arc};
+use std::io;
+use std::sync::Arc;
 
 use thiserror::Error;
 
@@ -21,10 +22,25 @@ pub enum Error {
         source: figment::Error,
     },
 
+    #[error("invalid file extension: {ext}")]
+    InvalidFileExtension { ext: String },
+
     #[error("i/o: {source}")]
     IO {
         #[from]
         source: io::Error,
+    },
+
+    #[error("setting tree-sitter language: {source}")]
+    TreeSitterLanguage {
+        #[from]
+        source: tree_sitter::LanguageError,
+    },
+
+    #[error("creating tree-sitter query: {source}")]
+    TreeSitterQuery {
+        #[from]
+        source: tree_sitter::QueryError,
     },
 
     #[error("not found: {what}")]
@@ -32,6 +48,9 @@ pub enum Error {
 
     #[error("'{arg}' not supported for '{command}'")]
     NotSupported { arg: String, command: String },
+
+    #[error("failed to parse")]
+    Parse,
 
     #[error("oauth2: {source}")]
     OAuth2 {

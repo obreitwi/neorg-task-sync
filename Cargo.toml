@@ -26,7 +26,10 @@ shadow-rs = "0.23.0"
 simple_logger = { version = "4.2.0", features = ["threads"] }
 thiserror = "1.0.40"
 tokio = { version = "1.28.0", features = ["full"] }
+tree-sitter = "0.20.10"
+tree-sitter-norg = "0.1.1"
 yup-oauth2 = "8.3.0"
 
 [build-dependencies]
 shadow-rs = "0.23.0"
+cc = "*"

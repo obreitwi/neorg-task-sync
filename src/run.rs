@@ -12,6 +12,7 @@ use crate::opts::ConfigCommand;
 use crate::opts::ConfigOperation;
 use crate::opts::GenerateTarget;
 use crate::opts::Opts;
+use crate::parse::parse_norg;
 use crate::tasks::get_tasklists;
 use crate::tasks::print_tasklists;
 
@@ -50,6 +51,20 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
                 let mut cmd = Opts::command();
                 let name = cmd.get_name().to_string();
                 generate(comp_opts.shell, &mut cmd, name, &mut std::io::stdout());
+            }
+        },
+
+        Command::Parse(ref parse) => match parse.target.extension() {
+            Some(norg) if norg == "norg" => parse_norg(&parse.target)?,
+            Some(other) => {
+                return Err(Error::InvalidFileExtension {
+                    ext: other.to_string_lossy().into(),
+                })
+            }
+            None => {
+                return Err(Error::InvalidFileExtension {
+                    ext: "<none>".into(),
+                })
             }
         },
     }
