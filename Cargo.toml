@@ -27,7 +27,7 @@ simple_logger = { version = "4.2.0", features = ["threads"] }
 thiserror = "1.0.40"
 tokio = { version = "1.28.0", features = ["full"] }
 tree-sitter = "0.20.10"
-tree-sitter-norg = "0.1.1"
+tree-sitter-norg = { path = "deps/tree-sitter-norg" }
 yup-oauth2 = "8.3.0"
 
 [build-dependencies]
