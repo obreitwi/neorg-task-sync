@@ -27,6 +27,8 @@ pub fn parse_norg(file: &Path) -> Result<(), Error> {
         .parse(&source_code, None)
         .ok_or_else(|| Error::Parse)?;
 
+    let source_code = source_code.into_bytes();
+
     log::debug!("Tree: {:#?}", tree);
 
     let query = Query::new(tree_sitter_norg::language(), QUERY_TODO)?;
@@ -34,10 +36,17 @@ pub fn parse_norg(file: &Path) -> Result<(), Error> {
     let mut cursor = QueryCursor::new();
 
     for (i, m) in cursor
-        .matches(&query, tree.root_node(), &source_code.into_bytes()[..])
+        .matches(&query, tree.root_node(), &source_code[..])
         .enumerate()
     {
-        log::debug!("Capture #{i}: {m:#?}");
+        log::debug!("Match #{i}: {m:#?}");
+    }
+
+    for (i, c) in cursor
+        .captures(&query, tree.root_node(), &source_code[..])
+        .enumerate()
+    {
+        log::debug!("Capture #{i}: {c:#?}");
     }
 
     Ok(())

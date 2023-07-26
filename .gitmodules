@@ -1,0 +1,3 @@
+[submodule "deps/tree-sitter-norg"]
+	path = deps/tree-sitter-norg
+	url = https://github.com/nvim-neorg/tree-sitter-norg/
