@@ -5,7 +5,7 @@ use clap::{
     crate_authors, crate_description, ArgAction, Args, ColorChoice, Parser, Subcommand, ValueEnum,
 };
 use clap_complete::Shell;
-use std::str;
+use std::{path::PathBuf, str};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -52,6 +52,10 @@ pub enum Command {
     /// Generate completions
     #[command(name = "generate")]
     Generate(Generate),
+
+    /// Run a parse action (mainly for debugging)
+    #[command(name = "parse")]
+    Parse(Parse),
 }
 
 #[derive(Args, Debug)]
@@ -125,6 +129,14 @@ pub enum GenerateTarget {
 
     /// Copmletion script
     Completion(CompletionOpts),
+}
+
+/// Parse-related commands
+#[derive(Args, Debug)]
+pub struct Parse {
+    /// What to generate
+    #[arg()]
+    pub target: PathBuf,
 }
 
 #[derive(Debug, Clone, Args)]

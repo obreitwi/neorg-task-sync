@@ -2,6 +2,7 @@ mod auth;
 mod cfg;
 mod error;
 mod opts;
+mod parse;
 mod run;
 mod tasks;
 
