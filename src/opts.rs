@@ -103,13 +103,17 @@ pub enum ConfigOperation {
     List,
 }
 
-impl ConfigOperation {
-    pub fn to_string(&self) -> String {
-        match self {
-            ConfigOperation::Get => "get".into(),
-            ConfigOperation::Set => "set".into(),
-            ConfigOperation::List => "list".into(),
-        }
+impl std::fmt::Display for ConfigOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ConfigOperation::Get => "get",
+                ConfigOperation::Set => "set",
+                ConfigOperation::List => "list",
+            },
+        )
     }
 }
 

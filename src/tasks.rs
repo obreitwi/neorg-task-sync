@@ -1,8 +1,6 @@
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
-use hyper;
 use hyper::client::HttpConnector;
-use hyper_rustls;
 use hyper_rustls::HttpsConnector;
 
 use crate::auth::Authenticator;
