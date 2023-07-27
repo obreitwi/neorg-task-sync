@@ -63,6 +63,12 @@ pub enum Error {
         #[from]
         source: google_tasks1::Error,
     },
+
+    #[error("parsing utf8: {source}")]
+    Utf8 {
+        #[from]
+        source: std::str::Utf8Error,
+    },
 }
 
 #[derive(Debug, Error)]
