@@ -56,6 +56,9 @@ pub enum Command {
     /// Run a parse action (mainly for debugging)
     #[command(name = "parse")]
     Parse(Parse),
+
+    #[command(name = "tasks")]
+    Tasks,
 }
 
 #[derive(Args, Debug)]

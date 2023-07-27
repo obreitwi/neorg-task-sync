@@ -1,3 +1,4 @@
+use google_tasks1::api::Task;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
@@ -35,6 +36,21 @@ pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> 
     tasklists.items.ok_or(Error::NotFound {
         what: "tasklists".into(),
     })
+}
+
+pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<(), Error> {
+    let hub = create_hub(auth);
+
+    let (_response, tasks) = hub
+        .tasks()
+        .list(tasklist)
+        .doit()
+        .await
+        .during("get tasks")?;
+
+    log::info!("{:#?}", tasks.items.unwrap());
+
+    Ok(())
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
