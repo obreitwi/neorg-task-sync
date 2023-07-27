@@ -55,7 +55,17 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
         },
 
         Command::Parse(ref parse) => match parse.target.extension() {
-            Some(norg) if norg == "norg" => parse_norg(&parse.target)?,
+            Some(norg) if norg == "norg" => {
+                let todos = parse_norg(&parse.target)?;
+                {
+                    let mut items = todos.iter().collect::<Vec<_>>();
+                    items.sort_by_key(|(k, _)| *k);
+
+                    for (line, todo) in items {
+                        log::info!("{line}: {todo:?}");
+                    }
+                }
+            }
             Some(other) => {
                 return Err(Error::InvalidFileExtension {
                     ext: other.to_string_lossy().into(),
