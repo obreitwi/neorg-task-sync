@@ -14,6 +14,7 @@ use crate::opts::GenerateTarget;
 use crate::opts::Opts;
 use crate::parse::parse_norg;
 use crate::tasks::get_tasklists;
+use crate::tasks::get_tasks;
 use crate::tasks::print_tasklists;
 
 pub async fn run(opts: &Opts) -> Result<(), Error> {
@@ -77,6 +78,10 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
                 })
             }
         },
+
+        Command::Tasks => {
+            get_tasks(auth::login().await?, &CFG.tasklist).await?;
+        }
     }
     Ok(())
 }

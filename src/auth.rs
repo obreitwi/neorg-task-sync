@@ -18,7 +18,7 @@ pub async fn login() -> Result<Authenticator, Error> {
     // Read application secret from a file. Sometimes it's easier to compile it directly into
     // the binary. The clientsecret file contains JSON like `{"installed":{"client_id": ... }}`
     //
-    log::info!("reading client secret: {}", clientsecret_name());
+    log::debug!("reading client secret: {}", clientsecret_name());
     let secret = yup_oauth2::read_application_secret(clientsecret_name())
         .await
         .during("reading clientsecret")?;
