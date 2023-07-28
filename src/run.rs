@@ -57,14 +57,12 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
 
         Command::Parse(ref parse) => match parse.target.extension() {
             Some(norg) if norg == "norg" => {
-                let todos = parse_norg(&parse.target)?;
-                {
-                    let mut items = todos.iter().collect::<Vec<_>>();
-                    items.sort_by_key(|(k, _)| *k);
+                let mut norg = parse_norg(&parse.target)?;
+                norg.todos.sort_by_key(|t| t.line);
 
-                    for (line, todo) in items {
-                        log::info!("{line}: {todo:?}");
-                    }
+                for todo in norg.todos.iter() {
+                    let line = todo.line;
+                    log::info!("{line}: {todo:?}");
                 }
             }
             Some(other) => {
