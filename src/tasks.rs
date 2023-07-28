@@ -1,4 +1,6 @@
-use google_tasks1::api::Task;
+use std::rc::Rc;
+
+use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
@@ -7,6 +9,36 @@ use hyper_rustls::HttpsConnector;
 use crate::auth::Authenticator;
 use crate::error::Error;
 use crate::error::WrapError;
+
+#[derive(Debug)]
+pub struct Task {
+    pub completed: bool,
+    pub id: Rc<str>,
+    pub title: Rc<str>,
+}
+
+impl TryFrom<&GTask> for Task {
+    type Error = Error;
+
+    fn try_from(task: &GTask) -> Result<Task, Error> {
+        Ok(Task {
+            completed: task.completed.is_some(),
+            id: task
+                .id
+                .as_ref()
+                .ok_or_else(|| Error::NotFound {
+                    what: "task id".into(),
+                })?
+                .as_str()
+                .into(),
+            title: task
+                .title
+                .as_ref()
+                .map(|s| s.as_str().into())
+                .unwrap_or_else(|| Rc::from(String::new())),
+        })
+    }
+}
 
 fn create_hub(auth: Authenticator) -> TasksHub<HttpsConnector<HttpConnector>> {
     TasksHub::new(
@@ -38,19 +70,44 @@ pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> 
     })
 }
 
-pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<(), Error> {
+pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>, Error> {
     let hub = create_hub(auth);
 
-    let (_response, tasks) = hub
-        .tasks()
-        .list(tasklist)
-        .doit()
-        .await
-        .during("get tasks")?;
+    let mut tasks = Vec::new();
+    let mut page_token: Option<String> = None;
+    loop {
+        let req = hub
+            .tasks()
+            .list(tasklist)
+            .show_completed(true)
+            .show_hidden(true);
 
-    log::info!("{:#?}", tasks.items.unwrap());
+        let req = if let Some(token) = page_token {
+            req.page_token(&token)
+        } else {
+            req
+        };
+        let (_response, got_tasks) = req.doit().await.during("get tasks")?;
 
-    Ok(())
+        page_token = got_tasks.next_page_token;
+
+        tasks.extend(
+            got_tasks
+                .items
+                .ok_or_else(|| Error::NoTasks)?
+                .iter()
+                .map(Task::try_from)
+                .collect::<Result<Vec<Task>, Error>>()?
+                .into_iter(),
+        );
+        if page_token.is_none() {
+            break;
+        }
+    }
+
+    log::info!("{:#?}", tasks);
+
+    Ok(tasks)
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
