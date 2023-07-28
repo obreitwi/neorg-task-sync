@@ -31,17 +31,8 @@ pub enum Error {
         source: io::Error,
     },
 
-    #[error("setting tree-sitter language: {source}")]
-    TreeSitterLanguage {
-        #[from]
-        source: tree_sitter::LanguageError,
-    },
-
-    #[error("creating tree-sitter query: {source}")]
-    TreeSitterQuery {
-        #[from]
-        source: tree_sitter::QueryError,
-    },
+    #[error("found no tasks")]
+    NoTasks,
 
     #[error("not found: {what}")]
     NotFound { what: String },
@@ -62,6 +53,18 @@ pub enum Error {
     TasksAPI {
         #[from]
         source: google_tasks1::Error,
+    },
+
+    #[error("setting tree-sitter language: {source}")]
+    TreeSitterLanguage {
+        #[from]
+        source: tree_sitter::LanguageError,
+    },
+
+    #[error("creating tree-sitter query: {source}")]
+    TreeSitterQuery {
+        #[from]
+        source: tree_sitter::QueryError,
     },
 
     #[error("parsing utf8: {source}")]
