@@ -35,6 +35,13 @@ pub struct Todo {
     pub id: Option<Rc<str>>,
     pub line: usize,
     pub state: State,
+    pub bytes: TodoBytes,
+}
+
+#[derive(Debug)]
+pub struct TodoBytes {
+    pub state_start: usize,
+    pub state_end: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -113,6 +120,17 @@ pub fn parse_norg(file: &Path) -> Result<ParsedNorg, Error> {
         "without tag"
         });
 
+        let node_state = m
+            .nodes_for_capture_index(idx.state)
+            .next()
+            .expect("no node for state");
+        let state = State::from_kind(node_state.kind());
+
+        let bytes = TodoBytes {
+            state_start: node_state.start_byte(),
+            state_end: node_state.end_byte(),
+        };
+
         let todo = match m.pattern_index {
             TODO_WITH_TAG => {
                 let node_id = m
@@ -133,17 +151,12 @@ pub fn parse_norg(file: &Path) -> Result<ParsedNorg, Error> {
                         .unwrap_or(content)
                 };
 
-                let node_state = m
-                    .nodes_for_capture_index(idx.state)
-                    .next()
-                    .expect("no node for state");
-                let state = State::from_kind(node_state.kind());
-
                 Todo {
                     line: node_state.start_position().row,
                     id: Some(id),
                     content,
                     state,
+                    bytes,
                 }
             }
             TODO_WITHOUT_TAG => {
@@ -157,17 +170,12 @@ pub fn parse_norg(file: &Path) -> Result<ParsedNorg, Error> {
                 }
                 let content = get_content(&node)?;
 
-                let node_state = m
-                    .nodes_for_capture_index(idx.state)
-                    .next()
-                    .expect("no node for state");
-                let state = State::from_kind(node_state.kind());
-
                 Todo {
                     line: node_state.start_position().row,
                     id: None,
                     content,
                     state,
+                    bytes,
                 }
             }
 
