@@ -31,10 +31,10 @@ const TODO_WITHOUT_TAG: usize = 1;
 
 #[derive(Debug)]
 pub struct Todo {
-    content: Rc<str>,
-    id: Option<Rc<str>>,
-    line: usize,
-    state: State,
+    pub content: Rc<str>,
+    pub id: Option<Rc<str>>,
+    pub line: usize,
+    pub state: State,
 }
 
 #[derive(Debug)]
@@ -56,16 +56,29 @@ impl State {
     }
 }
 
-type LineNo = usize;
-
 struct QueryIndices {
     content: u32,
     id_content: u32,
-    id_tag: u32,
+    // id_tag: u32,
     state: u32,
 }
 
-pub fn parse_norg(file: &Path) -> Result<HashMap<LineNo, Todo>, Error> {
+#[derive(Debug)]
+pub struct ParsedNorg {
+    pub source_code: Vec<u8>,
+    pub todos: Vec<Todo>,
+}
+
+impl ParsedNorg {
+    fn lines(&self) -> Vec<Vec<u8>> {
+        self.source_code[..]
+            .split(|t| *t == ('\n' as u8))
+            .map(Vec::from)
+            .collect()
+    }
+}
+
+pub fn parse_norg(file: &Path) -> Result<ParsedNorg, Error> {
     let (query, idx) = get_query()?;
 
     let mut todos = HashMap::new();
@@ -78,6 +91,7 @@ pub fn parse_norg(file: &Path) -> Result<HashMap<LineNo, Todo>, Error> {
         .parse(&source_code, None)
         .ok_or_else(|| Error::Parse)?;
     let source_code = source_code.into_bytes();
+    // source_code.split(|s| *s == ('\n' as u8));
 
     log::debug!("Tree: {:#?}", tree);
 
@@ -162,7 +176,10 @@ pub fn parse_norg(file: &Path) -> Result<HashMap<LineNo, Todo>, Error> {
         log::debug!("Inserting: {todo:?}");
         todos.insert(todo.line, todo);
     }
-    Ok(todos)
+
+    let mut todos = todos.into_values().collect::<Vec<_>>();
+    todos.sort_by_key(|t| t.line);
+    Ok(ParsedNorg { todos, source_code })
 }
 
 fn get_query() -> Result<(Query, QueryIndices), Error> {
@@ -171,7 +188,7 @@ fn get_query() -> Result<(Query, QueryIndices), Error> {
     let indices = QueryIndices {
         content: query.capture_index_for_name("content").unwrap(),
         id_content: query.capture_index_for_name("task-id-content").unwrap(),
-        id_tag: query.capture_index_for_name("task-id-tag").unwrap(),
+        // id_tag: query.capture_index_for_name("task-id-tag").unwrap(),
         state: query.capture_index_for_name("state").unwrap(),
     };
 
