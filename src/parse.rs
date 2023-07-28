@@ -37,7 +37,7 @@ pub struct Todo {
     pub state: State,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum State {
     Undone,
     Pending,

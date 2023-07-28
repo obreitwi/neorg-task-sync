@@ -1,14 +1,15 @@
-use std::rc::Rc;
-
+use chrono::offset::Utc;
 use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
+use std::rc::Rc;
 
 use crate::auth::Authenticator;
 use crate::error::Error;
 use crate::error::WrapError;
+use crate::parse::Todo;
 
 #[derive(Debug)]
 pub struct Task {
@@ -51,6 +52,20 @@ fn create_hub(auth: Authenticator) -> TasksHub<HttpsConnector<HttpConnector>> {
         ),
         auth,
     )
+}
+pub async fn get_single_task(
+    auth: Authenticator,
+    tasklist: &str,
+    task: &str,
+) -> Result<GTask, Error> {
+    let hub = create_hub(auth);
+    let (_response, task) = hub
+        .tasks()
+        .get(tasklist, task)
+        .doit()
+        .await
+        .during("get task")?;
+    Ok(task)
 }
 
 pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> {
@@ -108,6 +123,54 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
     log::info!("{:#?}", tasks);
 
     Ok(tasks)
+}
+
+pub async fn task_mark_completed(
+    auth: Authenticator,
+    tasklist: &str,
+    task: &str,
+) -> Result<(), Error> {
+    let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
+
+    if gtask.completed.is_some() {
+        log::warn!(
+            "Task already completed: {}",
+            gtask.title.as_ref().map(|s| s.as_str()).unwrap_or(task)
+        )
+    }
+    gtask.completed = Some(Utc::now().to_rfc3339());
+
+    let hub = create_hub(auth);
+
+    hub.tasks()
+        .update(gtask, tasklist, task)
+        .doit()
+        .await
+        .during("setting task done")?;
+
+    Ok(())
+}
+
+pub async fn todo_create(
+    auth: Authenticator,
+    tasklist: &str,
+    todo: &mut Todo,
+) -> Result<(), Error> {
+    let hub = create_hub(auth);
+    let req = {
+        let mut gt = GTask::default();
+        gt.title = Some(todo.content.to_string());
+        gt
+    };
+    let (_response, task) = hub
+        .tasks()
+        .insert(req, tasklist)
+        .doit()
+        .await
+        .during("creating task")?;
+
+    todo.id = task.id.map(|s| Rc::from(s.as_str()));
+    Ok(())
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
