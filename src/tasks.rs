@@ -157,10 +157,9 @@ pub async fn todo_create(
     todo: &mut Todo,
 ) -> Result<(), Error> {
     let hub = create_hub(auth);
-    let req = {
-        let mut gt = GTask::default();
-        gt.title = Some(todo.content.to_string());
-        gt
+    let req = GTask {
+        title: Some(todo.content.to_string()),
+        ..GTask::default()
     };
     let (_response, task) = hub
         .tasks()

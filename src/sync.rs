@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use crate::auth::Authenticator;
-use crate::parse::{ParsedNorg, State};
-use crate::tasks::{task_mark_completed, Task};
+use crate::parse::{ParsedNorg, State, Todo};
+use crate::tasks::{task_mark_completed, todo_create, Task};
 use crate::Error;
 
 // Sync completed tasks from remote to neorg
@@ -69,6 +69,26 @@ pub async fn sync_completed_from_norg(
     Ok(())
 }
 
-pub fn sync_unknown(norg: &ParsedNorg) -> Result<(), Error> {
-    todo!()
+// Create unknown task and update the source code to contain the task ids.
+// Does not write to disk.
+pub async fn sync_unknown(
+    auth: Authenticator,
+    tasklist: &str,
+    norg: &mut ParsedNorg,
+) -> Result<(), Error> {
+    let mut lines = norg.lines();
+
+    let todo_to_create: Vec<&mut Todo> = norg.todos.iter_mut().filter(|t| t.id.is_none()).collect();
+    if todo_to_create.is_empty() {
+        return Ok(());
+    }
+
+    for todo in todo_to_create {
+        todo_create(auth.clone(), tasklist, todo).await?;
+        todo.append_id(&mut lines[todo.line]);
+    }
+
+    norg.source_code = lines[..].join(&['\n' as u8][..]);
+
+    Ok(())
 }
