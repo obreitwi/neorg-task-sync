@@ -38,6 +38,18 @@ pub struct Todo {
     pub bytes: TodoBytes,
 }
 
+impl Todo {
+    pub fn append_id(&self, line: &mut Vec<u8>) {
+        line.extend(
+            format!(
+                " %#taskid {}%",
+                self.id.clone().expect("no todo id to append")
+            )
+            .into_bytes(),
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct TodoBytes {
     pub state_start: usize,
@@ -77,7 +89,7 @@ pub struct ParsedNorg {
 }
 
 impl ParsedNorg {
-    fn lines(&self) -> Vec<Vec<u8>> {
+    pub fn lines(&self) -> Vec<Vec<u8>> {
         self.source_code[..]
             .split(|t| *t == ('\n' as u8))
             .map(Vec::from)
