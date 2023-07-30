@@ -58,6 +58,8 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
         Command::Parse(ref parse) => match parse.target.extension() {
             Some(norg) if norg == "norg" => {
                 let mut norg = parse_norg(&parse.target)?;
+                log::debug!("{norg:#?}");
+
                 norg.todos.sort_by_key(|t| t.line);
 
                 for todo in norg.todos.iter() {
@@ -76,6 +78,9 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
                 })
             }
         },
+        Command::Sync(ref _sync) => {
+            unimplemented!()
+        }
 
         Command::Tasks => {
             get_tasks(auth::login().await?, &CFG.tasklist).await?;

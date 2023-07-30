@@ -57,6 +57,10 @@ pub enum Command {
     #[command(name = "parse")]
     Parse(Parse),
 
+    /// Sync tasks between local file and google tasks.
+    Sync(Sync),
+
+    /// Check which tasks are defined upstream (mainly for debugging)
     #[command(name = "tasks")]
     Tasks,
 }
@@ -142,8 +146,36 @@ pub enum GenerateTarget {
 #[derive(Args, Debug)]
 pub struct Parse {
     /// What to generate
-    #[arg()]
+    #[arg(required = true)]
     pub target: PathBuf,
+}
+
+/// Sync tasks (bread and butter)
+#[derive(Args, Debug)]
+pub struct Sync {
+    #[arg(required = true)]
+    /// Files to sync. New remote tasks will be synced into the last file specified.
+    files: Vec<PathBuf>,
+
+    #[arg(short = 'f', long)]
+    /// Pull new remote tasks to first file specified, instead.
+    pull_to_first: bool,
+
+    #[arg(short = 'L', long)]
+    /// Do not sync remote google tasks to local todos (neither create nor update status).
+    without_local: bool,
+
+    #[arg(short = 'R', long)]
+    /// Do not sync local todos to remote google tasks (neither create nor update status).
+    without_remote: bool,
+
+    #[arg(short = 'p', long)]
+    /// Do not push local todos to google and create new tasks.
+    without_push: bool,
+
+    #[arg(short = 'p', long)]
+    /// Do not pull remote google tasks and insert them into the todo section.
+    without_pull: bool,
 }
 
 #[derive(Debug, Clone, Args)]
