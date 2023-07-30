@@ -156,7 +156,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
 
         lines.insert(
             line_to_insert,
-            format!(" - ( ) {title} %#taskid {id}%").into_bytes(),
+            format!("  - ( ) {title} %#taskid {id}%").into_bytes(),
         )
     }
     norg.source_code = lines.join("\n".as_bytes());
@@ -173,7 +173,11 @@ pub async fn sync_push_new(
 ) -> Result<(), Error> {
     let mut lines = norg.lines();
 
-    let todo_to_create: Vec<&mut Todo> = norg.todos.iter_mut().filter(|t| t.id.is_none()).collect();
+    let todo_to_create: Vec<&mut Todo> = norg
+        .todos
+        .iter_mut()
+        .filter(|t| t.state == State::Undone && t.id.is_none())
+        .collect();
     if todo_to_create.is_empty() {
         return Ok(());
     }
