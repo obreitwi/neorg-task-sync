@@ -7,7 +7,7 @@ use crate::tasks::{task_mark_completed, todo_create, Task};
 use crate::Error;
 
 // Sync completed tasks from remote to neorg
-pub fn sync_completed_to_norg(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
+pub fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
     let remote_done: HashSet<Rc<str>> = tasks
         .iter()
         .filter_map(|t| {
@@ -44,7 +44,7 @@ pub fn sync_completed_to_norg(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(
 }
 
 // Sync completed tasks from neorg to remote
-pub async fn sync_completed_from_norg(
+pub async fn sync_push_completed(
     auth: Authenticator,
     tasklist: &str,
     norg: &mut ParsedNorg,
@@ -69,9 +69,41 @@ pub async fn sync_completed_from_norg(
     Ok(())
 }
 
+// Insert unkown remote tasks into source_code, BUT NOT the list of todos.
+// Write to disk and reparse.
+// Does not write to disk.
+pub fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
+    let norg_ids: HashSet<Rc<str>> = norg.todos.iter().filter_map(|t| t.id.clone()).collect();
+
+    let mut lines = norg.lines();
+
+    let tasks_to_create = tasks
+        .iter()
+        .filter(|t| !t.completed && !norg_ids.contains(&t.id));
+
+    for (i, task) in tasks_to_create.enumerate() {
+        let line_to_insert = match (norg.todos.is_empty(), norg.line_no_todo_section) {
+            (false, _) => norg.todos.last().unwrap().line + 1,
+            (true, usize::MAX) => lines.len(),
+            (true, line) => line + 1 + i,
+        };
+
+        let title = task.title.clone();
+        let id = task.id.clone();
+
+        lines.insert(
+            line_to_insert,
+            format!(" - ( ) {title} %#taskid {id}%").into_bytes(),
+        )
+    }
+    norg.source_code = lines.join("\n".as_bytes());
+
+    Ok(())
+}
+
 // Create unknown task and update the source code to contain the task ids.
 // Does not write to disk.
-pub async fn sync_unknown(
+pub async fn sync_push_new(
     auth: Authenticator,
     tasklist: &str,
     norg: &mut ParsedNorg,
@@ -88,7 +120,7 @@ pub async fn sync_unknown(
         todo.append_id(&mut lines[todo.line]);
     }
 
-    norg.source_code = lines[..].join(&['\n' as u8][..]);
+    norg.source_code = lines.join("\n".as_bytes());
 
     Ok(())
 }
