@@ -12,7 +12,8 @@ use crate::opts::ConfigCommand;
 use crate::opts::ConfigOperation;
 use crate::opts::GenerateTarget;
 use crate::opts::Opts;
-use crate::parse::parse_norg;
+use crate::parse::ParsedNorg;
+use crate::sync::perform_sync;
 use crate::tasks::get_tasklists;
 use crate::tasks::get_tasks;
 use crate::tasks::print_tasklists;
@@ -57,7 +58,7 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
 
         Command::Parse(ref parse) => match parse.target.extension() {
             Some(norg) if norg == "norg" => {
-                let mut norg = parse_norg(&parse.target)?;
+                let mut norg = ParsedNorg::parse(&parse.target)?;
                 log::debug!("{norg:#?}");
 
                 norg.todos.sort_by_key(|t| t.line);
@@ -78,9 +79,7 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
                 })
             }
         },
-        Command::Sync(ref _sync) => {
-            unimplemented!()
-        }
+        Command::Sync(ref sync) => perform_sync(auth::login().await?, sync).await?,
 
         Command::Tasks => {
             get_tasks(auth::login().await?, &CFG.tasklist).await?;
