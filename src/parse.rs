@@ -1,7 +1,10 @@
 use once_cell::unsync::Lazy;
 use std::collections::HashMap;
 use std::fs::read_to_string;
+use std::fs::rename;
+use std::fs::write;
 use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 use tree_sitter::Node;
 use tree_sitter::Parser;
@@ -101,6 +104,7 @@ pub struct ParsedNorg {
     pub source_code: Vec<u8>,
     pub todos: Vec<Todo>,
     pub line_no_todo_section: usize,
+    filename: PathBuf,
 }
 
 impl ParsedNorg {
@@ -110,126 +114,134 @@ impl ParsedNorg {
             .map(Vec::from)
             .collect()
     }
-}
 
-pub fn parse_norg(file: &Path) -> Result<ParsedNorg, Error> {
-    let (query, idx) = get_query()?;
+    pub fn write(&self) -> Result<(), Error> {
+        rename(&self.filename, self.filename.with_extension("norg.bak"))?;
+        write(&self.filename, &self.source_code[..])?;
 
-    let mut todos = HashMap::new();
-
-    let mut parser = Parser::new();
-    parser.set_language(tree_sitter_norg::language())?;
-
-    let source_code = read_to_string(file).during("reading norg file")?;
-    let tree = parser
-        .parse(&source_code, None)
-        .ok_or_else(|| Error::Parse)?;
-    let source_code = source_code.into_bytes();
-    // source_code.split(|s| *s == ('\n' as u8));
-
-    log::debug!("Tree: {:#?}", tree);
-
-    let mut cursor = QueryCursor::new();
-
-    let get_content = |node: &Node| -> Result<Rc<str>, Error> {
-        Ok(Rc::from(
-            std::str::from_utf8(&source_code[node.start_byte()..node.end_byte()])?.trim(),
-        ))
-    };
-
-    let mut line_no_todo_section = usize::MAX;
-
-    for (i, m) in cursor
-        .matches(&query, tree.root_node(), &source_code[..])
-        .enumerate()
-    {
-        match m.pattern_index {
-            TODO_WITH_TAG | TODO_WITHOUT_TAG => {
-                log::debug!("Match #{i} [{type}]: {m:#?}", type=if m.pattern_index == TODO_WITH_TAG {
-                "with tag"
-                } else {
-                "without tag"
-                });
-
-                let node_state = m
-                    .nodes_for_capture_index(idx.state)
-                    .next()
-                    .expect("no node for state");
-                let state = State::from_kind(node_state.kind());
-
-                let bytes = TodoBytes {
-                    state_start: node_state.start_byte(),
-                    state_end: node_state.end_byte(),
-                };
-
-                let todo = match m.pattern_index {
-                    TODO_WITH_TAG => {
-                        let node_id = m
-                            .nodes_for_capture_index(idx.id_content)
-                            .next()
-                            .expect("no node for tag content");
-                        let id = get_content(&node_id)?;
-
-                        let node_content = m
-                            .nodes_for_capture_index(idx.content)
-                            .next()
-                            .expect("no node for content");
-                        let content: Rc<str> = {
-                            let content = get_content(&node_content)?;
-                            content
-                                .split_once("%")
-                                .map(|(s, _)| Rc::from(s.trim()))
-                                .unwrap_or(content)
-                        };
-
-                        Todo {
-                            line: node_state.start_position().row,
-                            id: Some(id),
-                            content,
-                            state,
-                            bytes,
-                        }
-                    }
-                    TODO_WITHOUT_TAG => {
-                        let node = m
-                            .nodes_for_capture_index(idx.content)
-                            .next()
-                            .expect("no content nodes");
-                        let line = node.start_position().row;
-                        if todos.contains_key(&line) {
-                            continue;
-                        }
-                        let content = get_content(&node)?;
-
-                        Todo {
-                            line: node_state.start_position().row,
-                            id: None,
-                            content,
-                            state,
-                            bytes,
-                        }
-                    }
-
-                    other => panic!("invalid pattern index when parsing todo: {other}"),
-                };
-                log::debug!("Inserting: {todo:?}");
-                todos.insert(todo.line, todo);
-            }
-
-            TODO_SECTION => {
-                line_no_todo_section = m.captures[0].node.start_position().row;
-            }
-            other => panic!("invalid pattern index: {other}"),
-        }
+        Ok(())
     }
 
-    let mut todos = todos.into_values().collect::<Vec<_>>();
-    todos.sort_by_key(|t| t.line);
-    Ok(ParsedNorg {
-        todos,
-        source_code,
-        line_no_todo_section,
-    })
+    pub fn parse(file: &Path) -> Result<Self, Error> {
+        let (query, idx) = get_query()?;
+
+        let mut todos = HashMap::new();
+
+        let mut parser = Parser::new();
+        parser.set_language(tree_sitter_norg::language())?;
+
+        let source_code = read_to_string(file).during("reading norg file")?;
+        let tree = parser
+            .parse(&source_code, None)
+            .ok_or_else(|| Error::Parse)?;
+        let source_code = source_code.into_bytes();
+        // source_code.split(|s| *s == ('\n' as u8));
+
+        log::debug!("Tree: {:#?}", tree);
+
+        let mut cursor = QueryCursor::new();
+
+        let get_content = |node: &Node| -> Result<Rc<str>, Error> {
+            Ok(Rc::from(
+                std::str::from_utf8(&source_code[node.start_byte()..node.end_byte()])?.trim(),
+            ))
+        };
+
+        let mut line_no_todo_section = usize::MAX;
+
+        for (i, m) in cursor
+            .matches(&query, tree.root_node(), &source_code[..])
+            .enumerate()
+        {
+            match m.pattern_index {
+                TODO_WITH_TAG | TODO_WITHOUT_TAG => {
+                    log::debug!("Match #{i} [{type}]: {m:#?}", type=if m.pattern_index == TODO_WITH_TAG {
+                    "with tag"
+                    } else {
+                    "without tag"
+                    });
+
+                    let node_state = m
+                        .nodes_for_capture_index(idx.state)
+                        .next()
+                        .expect("no node for state");
+                    let state = State::from_kind(node_state.kind());
+
+                    let bytes = TodoBytes {
+                        state_start: node_state.start_byte(),
+                        state_end: node_state.end_byte(),
+                    };
+
+                    let todo = match m.pattern_index {
+                        TODO_WITH_TAG => {
+                            let node_id = m
+                                .nodes_for_capture_index(idx.id_content)
+                                .next()
+                                .expect("no node for tag content");
+                            let id = get_content(&node_id)?;
+
+                            let node_content = m
+                                .nodes_for_capture_index(idx.content)
+                                .next()
+                                .expect("no node for content");
+                            let content: Rc<str> = {
+                                let content = get_content(&node_content)?;
+                                content
+                                    .split_once("%")
+                                    .map(|(s, _)| Rc::from(s.trim()))
+                                    .unwrap_or(content)
+                            };
+
+                            Todo {
+                                line: node_state.start_position().row,
+                                id: Some(id),
+                                content,
+                                state,
+                                bytes,
+                            }
+                        }
+                        TODO_WITHOUT_TAG => {
+                            let node = m
+                                .nodes_for_capture_index(idx.content)
+                                .next()
+                                .expect("no content nodes");
+                            let line = node.start_position().row;
+                            if todos.contains_key(&line) {
+                                continue;
+                            }
+                            let content = get_content(&node)?;
+
+                            Todo {
+                                line: node_state.start_position().row,
+                                id: None,
+                                content,
+                                state,
+                                bytes,
+                            }
+                        }
+
+                        other => panic!("invalid pattern index when parsing todo: {other}"),
+                    };
+                    log::debug!("Inserting: {todo:?}");
+                    todos.insert(todo.line, todo);
+                }
+
+                TODO_SECTION => {
+                    line_no_todo_section = m.captures[0].node.start_position().row;
+                }
+                other => panic!("invalid pattern index: {other}"),
+            }
+        }
+
+        let mut todos = todos.into_values().collect::<Vec<_>>();
+        todos.sort_by_key(|t| t.line);
+        Ok(ParsedNorg {
+            todos,
+            source_code,
+            line_no_todo_section,
+            filename: file.into(),
+        })
+    }
 }
 
 fn get_query() -> Result<(Query, QueryIndices), Error> {
