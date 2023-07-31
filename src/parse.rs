@@ -38,6 +38,11 @@ const QUERY_TODO: Lazy<Rc<str>> = Lazy::new(|| {
  )
  (#match? @title "{todo_section_header}")
 )
+(
+ (heading1
+   title: (_) @title
+ )
+)
 "###
     ).as_str().into()
 });
@@ -45,6 +50,7 @@ const QUERY_TODO: Lazy<Rc<str>> = Lazy::new(|| {
 const TODO_WITH_TAG: usize = 0;
 const TODO_WITHOUT_TAG: usize = 1;
 const TODO_SECTION: usize = 2;
+const OTHER_SECTION: usize = 3;
 
 #[derive(Debug)]
 pub struct Todo {
@@ -103,8 +109,14 @@ struct QueryIndices {
 pub struct ParsedNorg {
     pub source_code: Vec<u8>,
     pub todos: Vec<Todo>,
-    pub line_no_todo_section: usize,
+    pub line_no: LineNo,
     filename: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct LineNo {
+    pub todo_section: usize,
+    pub section_after_todo: usize,
 }
 
 impl ParsedNorg {
@@ -148,6 +160,7 @@ impl ParsedNorg {
         };
 
         let mut line_no_todo_section = usize::MAX;
+        let mut line_no_sections: Vec<usize> = Vec::new();
 
         for (i, m) in cursor
             .matches(&query, tree.root_node(), &source_code[..])
@@ -229,6 +242,10 @@ impl ParsedNorg {
                 TODO_SECTION => {
                     line_no_todo_section = m.captures[0].node.start_position().row;
                 }
+
+                OTHER_SECTION => {
+                    line_no_sections.push(m.captures[0].node.start_position().row);
+                }
                 other => panic!("invalid pattern index: {other}"),
             }
         }
@@ -238,7 +255,14 @@ impl ParsedNorg {
         Ok(ParsedNorg {
             todos,
             source_code,
-            line_no_todo_section,
+            line_no: LineNo {
+                todo_section: line_no_todo_section,
+                section_after_todo: line_no_sections
+                    .into_iter()
+                    .filter(|l| *l > line_no_todo_section)
+                    .max()
+                    .unwrap_or(usize::MAX),
+            },
             filename: file.into(),
         })
     }

@@ -20,16 +20,21 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         }
     };
 
+    let tasklist: Rc<str> = CFG.tasklist.as_str().into();
+
+    let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
+
     for (i, file) in opts.files.iter().enumerate() {
         let syncer = Syncer {
             pull_completed: !opts.without_local,
             push_completed: !opts.without_remote,
             pull_new: !opts.without_local && !opts.without_pull && should_pull_new(i),
             push_new: !opts.without_remote && !opts.without_push,
-            tasklist: CFG.tasklist.as_str().into(),
+            tasklist: tasklist.clone(),
         };
 
-        syncer.perform(auth.clone(), file).await?;
+        let new_tasks = syncer.perform(auth.clone(), file, &tasks[..]).await?;
+        tasks.extend(new_tasks);
     }
     Ok(())
 }
@@ -44,28 +49,37 @@ struct Syncer {
 }
 
 impl Syncer {
-    // Perform full sync
-    pub async fn perform(&self, auth: Authenticator, file: &Path) -> Result<(), Error> {
+    // Perform full sync, returning newly created tasks
+    pub async fn perform(
+        &self,
+        auth: Authenticator,
+        file: &Path,
+        tasks: &[Task],
+    ) -> Result<Vec<Task>, Error> {
         let mut norg = ParsedNorg::parse(file)?;
 
-        let tasks = get_tasks(auth.clone(), &self.tasklist).await?;
+        let mut new_tasks: Vec<Task> = Vec::new();
 
+        log::trace!("Pre-pull completed:\n{norg:#?}");
         if self.pull_completed {
-            sync_pull_completed(&tasks[..], &mut norg)?;
+            sync_pull_completed(tasks, &mut norg)?;
         }
+        log::trace!("Pre-pull new:\n{norg:#?}");
         if self.pull_new {
-            sync_pull_new(&tasks[..], &mut norg)?;
+            sync_pull_new(tasks, &mut norg)?;
         }
 
+        log::trace!("Pre-push completed:\n{norg:#?}");
         if self.push_completed {
-            sync_push_completed(auth.clone(), &self.tasklist, &mut norg, &tasks[..]).await?;
+            sync_push_completed(auth.clone(), &self.tasklist, &mut norg, tasks).await?;
         }
+        log::trace!("Pre-push new:\n{norg:#?}");
         if self.push_new {
-            sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?;
+            new_tasks.extend(sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?);
         }
 
         norg.write()?;
-        Ok(())
+        Ok(new_tasks)
     }
 }
 
@@ -95,13 +109,11 @@ fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Erro
             );
         }
 
-        norg.source_code = norg
-            .source_code
-            .splice(
-                todo.bytes.state_start..todo.bytes.state_end,
-                ['x' as u8].into_iter(),
-            )
-            .collect();
+        log::trace!("len source code (pre): {}", norg.source_code.len());
+        norg.source_code.splice(
+            todo.bytes.state_start..todo.bytes.state_end,
+            "x".as_bytes().into_iter().cloned(),
+        );
     }
     Ok(())
 }
@@ -126,6 +138,7 @@ async fn sync_push_completed(
         .iter()
         .filter(|t| !t.completed && norg_done.contains(&t.id))
     {
+        log::info!("Marking '{title}' as done.", title = task.title);
         task_mark_completed(auth.clone(), tasklist, &task.id).await?;
     }
 
@@ -145,10 +158,24 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
         .filter(|t| !t.completed && !norg_ids.contains(&t.id));
 
     for (i, task) in tasks_to_create.enumerate() {
-        let line_to_insert = match (norg.todos.is_empty(), norg.line_no_todo_section) {
-            (false, _) => norg.todos.last().unwrap().line + 1,
-            (true, usize::MAX) => lines.len(),
-            (true, line) => line + 1 + i,
+        let line_to_insert = match (
+            norg.todos.is_empty(),
+            norg.line_no.todo_section,
+            norg.line_no.section_after_todo,
+        ) {
+            (false, usize::MAX, usize::MAX) => norg.todos.last().unwrap().line + 1,
+            (false, section_todo, section_next) => {
+                norg.todos
+                    .iter()
+                    .filter(|t| section_todo < t.line && t.line < section_next)
+                    .last()
+                    .map(|t| t.line)
+                    .unwrap_or(section_todo)
+                    + 1
+                    + i
+            }
+            (true, usize::MAX, usize::MAX) => lines.len(),
+            (true, section_todo, _) => section_todo + 1 + i,
         };
 
         let title = task.title.clone();
@@ -165,12 +192,13 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
 }
 
 // Create unknown task and update the source code to contain the task ids.
+// Returns newly created tasks.
 // Does not write to disk.
 pub async fn sync_push_new(
     auth: Authenticator,
     tasklist: &str,
     norg: &mut ParsedNorg,
-) -> Result<(), Error> {
+) -> Result<Vec<Task>, Error> {
     let mut lines = norg.lines();
 
     let todo_to_create: Vec<&mut Todo> = norg
@@ -179,15 +207,16 @@ pub async fn sync_push_new(
         .filter(|t| t.state == State::Undone && t.id.is_none())
         .collect();
     if todo_to_create.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
+    let mut new_tasks = Vec::new();
     for todo in todo_to_create {
-        todo_create(auth.clone(), tasklist, todo).await?;
+        new_tasks.push(todo_create(auth.clone(), tasklist, todo).await?);
         todo.append_id(&mut lines[todo.line]);
     }
 
     norg.source_code = lines.join("\n".as_bytes());
 
-    Ok(())
+    Ok(new_tasks)
 }
