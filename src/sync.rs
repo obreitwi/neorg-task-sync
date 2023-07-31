@@ -33,8 +33,9 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
             tasklist: tasklist.clone(),
         };
 
-        let new_tasks = syncer.perform(auth.clone(), file, &tasks[..]).await?;
+        let (new_tasks, stats) = syncer.perform(auth.clone(), file, &tasks[..]).await?;
         tasks.extend(new_tasks);
+        println!("{file}: {stats}", file = file.display());
     }
     Ok(())
 }
@@ -48,6 +49,25 @@ struct Syncer {
     tasklist: Rc<str>,
 }
 
+#[derive(Debug)]
+struct SyncStats {
+    num_pull_completed: usize,
+    num_push_completed: usize,
+    num_pull_new: usize,
+    num_push_new: usize,
+}
+
+impl std::fmt::Display for SyncStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new tasks",
+        pull_completed=self.num_pull_completed,
+        push_completed=self.num_push_completed,
+        pull_new=self.num_pull_new,
+        push_new=self.num_push_new,
+        )
+    }
+}
+
 impl Syncer {
     // Perform full sync, returning newly created tasks
     pub async fn perform(
@@ -55,36 +75,52 @@ impl Syncer {
         auth: Authenticator,
         file: &Path,
         tasks: &[Task],
-    ) -> Result<Vec<Task>, Error> {
+    ) -> Result<(Vec<Task>, SyncStats), Error> {
         let mut norg = ParsedNorg::parse(file)?;
 
         let mut new_tasks: Vec<Task> = Vec::new();
 
+        let mut num_pull_completed = 0;
+        let mut num_push_completed = 0;
+        let mut num_pull_new = 0;
+        let mut num_push_new = 0;
+
         log::trace!("Pre-pull completed:\n{norg:#?}");
         if self.pull_completed {
-            sync_pull_completed(tasks, &mut norg)?;
+            num_pull_completed = sync_pull_completed(tasks, &mut norg)?;
         }
         log::trace!("Pre-pull new:\n{norg:#?}");
         if self.pull_new {
-            sync_pull_new(tasks, &mut norg)?;
+            num_pull_new = sync_pull_new(tasks, &mut norg)?;
         }
 
         log::trace!("Pre-push completed:\n{norg:#?}");
         if self.push_completed {
-            sync_push_completed(auth.clone(), &self.tasklist, &mut norg, tasks).await?;
+            num_push_completed =
+                sync_push_completed(auth.clone(), &self.tasklist, &mut norg, tasks).await?;
         }
         log::trace!("Pre-push new:\n{norg:#?}");
         if self.push_new {
-            new_tasks.extend(sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?);
+            let pushed = sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?;
+            num_push_new = pushed.len();
+            new_tasks.extend(pushed);
         }
 
         norg.write()?;
-        Ok(new_tasks)
+        Ok((
+            new_tasks,
+            SyncStats {
+                num_pull_completed,
+                num_push_completed,
+                num_pull_new,
+                num_push_new,
+            },
+        ))
     }
 }
 
 // Sync completed tasks from remote to neorg
-fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
+fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> {
     let remote_done: HashSet<Rc<str>> = tasks
         .iter()
         .filter_map(|t| {
@@ -96,6 +132,7 @@ fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Erro
         })
         .collect();
 
+    let mut count = 0;
     for todo in norg.todos.iter_mut().filter(|t| {
         t.state != State::Done && t.id.is_some() && remote_done.contains(&t.id.clone().unwrap())
     }) {
@@ -109,22 +146,22 @@ fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Erro
             );
         }
 
-        log::trace!("len source code (pre): {}", norg.source_code.len());
         norg.source_code.splice(
             todo.bytes.state_start..todo.bytes.state_end,
             "x".as_bytes().into_iter().cloned(),
         );
+        count += 1;
     }
-    Ok(())
+    Ok(count)
 }
 
-// Sync completed tasks from neorg to remote
+// Sync completed tasks from neorg to remote, return how many were synced.
 async fn sync_push_completed(
     auth: Authenticator,
     tasklist: &str,
     norg: &mut ParsedNorg,
     tasks: &[Task],
-) -> Result<(), Error> {
+) -> Result<usize, Error> {
     let norg_done: HashSet<Rc<str>> = norg
         .todos
         .iter()
@@ -134,21 +171,24 @@ async fn sync_push_completed(
         })
         .collect();
 
+    let mut count = 0;
     for task in tasks
         .iter()
         .filter(|t| !t.completed && norg_done.contains(&t.id))
     {
         log::info!("Marking '{title}' as done.", title = task.title);
         task_mark_completed(auth.clone(), tasklist, &task.id).await?;
+        count += 1;
     }
 
-    Ok(())
+    Ok(count)
 }
 
-// Insert unkown remote tasks into source_code, BUT NOT the list of todos.
-// Write to disk and reparse.
+// Insert unkown remote tasks into source_code, BUT NOT the list of todos. Returns list of pulled
+// tasks.
+// Write to disk and reparse to get new tasks.
 // Does not write to disk.
-fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
+fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> {
     let norg_ids: HashSet<Rc<str>> = norg.todos.iter().filter_map(|t| t.id.clone()).collect();
 
     let mut lines = norg.lines();
@@ -157,6 +197,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
         .iter()
         .filter(|t| !t.completed && !norg_ids.contains(&t.id));
 
+    let mut count = 0;
     for (i, task) in tasks_to_create.enumerate() {
         let line_to_insert = match (
             norg.todos.is_empty(),
@@ -184,11 +225,12 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<(), Error> {
         lines.insert(
             line_to_insert,
             format!("  - ( ) {title} %#taskid {id}%").into_bytes(),
-        )
+        );
+        count += 1;
     }
     norg.source_code = lines.join("\n".as_bytes());
 
-    Ok(())
+    Ok(count)
 }
 
 // Create unknown task and update the source code to contain the task ids.
