@@ -1,4 +1,3 @@
-use chrono::offset::Utc;
 use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
