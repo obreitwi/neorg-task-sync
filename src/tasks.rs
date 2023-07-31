@@ -120,7 +120,7 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
         }
     }
 
-    log::info!("{:#?}", tasks);
+    log::debug!("{:#?}", tasks);
 
     Ok(tasks)
 }
@@ -138,7 +138,7 @@ pub async fn task_mark_completed(
             gtask.title.as_ref().map(|s| s.as_str()).unwrap_or(task)
         )
     }
-    gtask.completed = Some(Utc::now().to_rfc3339());
+    gtask.status = Some("completed".into());
 
     let hub = create_hub(auth);
 
@@ -155,7 +155,7 @@ pub async fn todo_create(
     auth: Authenticator,
     tasklist: &str,
     todo: &mut Todo,
-) -> Result<(), Error> {
+) -> Result<Task, Error> {
     let hub = create_hub(auth);
     let req = GTask {
         title: Some(todo.content.to_string()),
@@ -168,8 +168,8 @@ pub async fn todo_create(
         .await
         .during("creating task")?;
 
-    todo.id = task.id.map(|s| Rc::from(s.as_str()));
-    Ok(())
+    todo.id = task.id.as_ref().map(|s| Rc::from(s.as_str()));
+    Task::try_from(&task)
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
