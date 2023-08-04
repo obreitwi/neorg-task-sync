@@ -10,33 +10,68 @@ use crate::tasks::{get_tasks, task_mark_completed, todo_create, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
-    let num_files = opts.files.len();
-
-    let should_pull_new = |idx: usize| -> bool {
-        if opts.pull_to_first {
-            idx == 0
-        } else {
-            idx == num_files - 1
-        }
-    };
-
     let tasklist: Rc<str> = CFG.tasklist.as_str().into();
 
     let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
 
+    let original_tasks = tasks.clone();
+
+    let mut todos = Vec::new();
+
+    let idx_last = opts.files.len() - 1;
     for (i, file) in opts.files.iter().enumerate() {
+        // Skip the file we want to pull to
+        match (i, opts.pull_to_first) {
+            (0, true) => continue,
+            (idx, false) if idx == idx_last => continue,
+            _ => {}
+        }
+
         let syncer = Syncer {
             pull_completed: !opts.without_local,
             push_completed: !opts.without_remote,
-            pull_new: !opts.without_local && !opts.without_pull && should_pull_new(i),
+            pull_new: false,
             push_new: !opts.without_remote && !opts.without_push,
             tasklist: tasklist.clone(),
         };
 
-        let (new_tasks, stats) = syncer.perform(auth.clone(), file, &tasks[..]).await?;
-        tasks.extend(new_tasks);
-        println!("{file}: {stats}", file = file.display());
+        let result = syncer.perform(auth.clone(), file, &tasks[..]).await?;
+        tasks.extend(result.tasks_new);
+        todos.extend(result.todos_present);
+        println!(
+            "{file}: {stats}",
+            file = file.display(),
+            stats = result.stats
+        );
     }
+
+    // Sync file that we pull to
+    let present_todo_ids: Vec<Rc<str>> = todos.iter().filter_map(|t| t.id.clone()).collect();
+    // tasks that were actually created new
+    let new_remote_tasks = original_tasks
+        .iter()
+        .filter(|t| !present_todo_ids.contains(&t.id))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let file_to_pull = &opts.files[if opts.pull_to_first { 0 } else { idx_last }];
+
+    let result = Syncer {
+        pull_completed: !opts.without_local,
+        push_completed: !opts.without_remote,
+        pull_new: !opts.without_local && !opts.without_pull,
+        push_new: !opts.without_remote && !opts.without_push,
+        tasklist: tasklist.clone(),
+    }
+    .perform(auth.clone(), file_to_pull, &new_remote_tasks[..])
+    .await?;
+
+    println!(
+        "{file}: {stats}",
+        file = file_to_pull.display(),
+        stats = result.stats
+    );
+
     Ok(())
 }
 
@@ -49,7 +84,7 @@ struct Syncer {
     tasklist: Rc<str>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SyncStats {
     num_pull_completed: usize,
     num_push_completed: usize,
@@ -68,6 +103,13 @@ impl std::fmt::Display for SyncStats {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SyncResult {
+    tasks_new: Vec<Task>,
+    todos_present: Vec<Todo>,
+    stats: SyncStats,
+}
+
 impl Syncer {
     // Perform full sync, returning newly created tasks
     pub async fn perform(
@@ -75,10 +117,10 @@ impl Syncer {
         auth: Authenticator,
         file: &Path,
         tasks: &[Task],
-    ) -> Result<(Vec<Task>, SyncStats), Error> {
+    ) -> Result<SyncResult, Error> {
         let mut norg = ParsedNorg::parse(file)?;
 
-        let mut new_tasks: Vec<Task> = Vec::new();
+        let mut tasks_new: Vec<Task> = Vec::new();
 
         let mut num_pull_completed = 0;
         let mut num_push_completed = 0;
@@ -103,19 +145,20 @@ impl Syncer {
         if self.push_new {
             let pushed = sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?;
             num_push_new = pushed.len();
-            new_tasks.extend(pushed);
+            tasks_new.extend(pushed);
         }
 
         norg.write()?;
-        Ok((
-            new_tasks,
-            SyncStats {
+        Ok(SyncResult {
+            tasks_new,
+            todos_present: norg.todos,
+            stats: SyncStats {
                 num_pull_completed,
                 num_push_completed,
                 num_pull_new,
                 num_push_new,
             },
-        ))
+        })
     }
 }
 
@@ -148,7 +191,7 @@ fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, E
 
         norg.source_code.splice(
             todo.bytes.state_start..todo.bytes.state_end,
-            "x".as_bytes().into_iter().cloned(),
+            "x".as_bytes().iter().cloned(),
         );
         count += 1;
     }
@@ -224,7 +267,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
 
         lines.insert(
             line_to_insert,
-            format!("  - ( ) {title} %#taskid {id}%").into_bytes(),
+            format!(" - ( ) {title} %#taskid {id}%").into_bytes(),
         );
         count += 1;
     }

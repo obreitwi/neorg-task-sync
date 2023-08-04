@@ -10,7 +10,7 @@ use crate::error::Error;
 use crate::error::WrapError;
 use crate::parse::Todo;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Task {
     pub completed: bool,
     pub id: Rc<str>,
@@ -134,7 +134,7 @@ pub async fn task_mark_completed(
     if gtask.completed.is_some() {
         log::warn!(
             "Task already completed: {}",
-            gtask.title.as_ref().map(|s| s.as_str()).unwrap_or(task)
+            gtask.title.as_deref().unwrap_or(task)
         )
     }
     gtask.status = Some("completed".into());

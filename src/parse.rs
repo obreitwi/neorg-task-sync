@@ -52,7 +52,7 @@ const TODO_WITHOUT_TAG: usize = 1;
 const TODO_SECTION: usize = 2;
 const OTHER_SECTION: usize = 3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Todo {
     pub content: Rc<str>,
     pub id: Option<Rc<str>>,
@@ -73,13 +73,13 @@ impl Todo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct TodoBytes {
     pub state_start: usize,
     pub state_end: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum State {
     Undone,
     Pending,
@@ -122,7 +122,7 @@ pub struct LineNo {
 impl ParsedNorg {
     pub fn lines(&self) -> Vec<Vec<u8>> {
         self.source_code[..]
-            .split(|t| *t == ('\n' as u8))
+            .split(|t| *t == (b'\n'))
             .map(Vec::from)
             .collect()
     }
@@ -200,7 +200,7 @@ impl ParsedNorg {
                             let content: Rc<str> = {
                                 let content = get_content(&node_content)?;
                                 content
-                                    .split_once("%")
+                                    .split_once('%')
                                     .map(|(s, _)| Rc::from(s.trim()))
                                     .unwrap_or(content)
                             };
