@@ -1,11 +1,11 @@
-use once_cell::unsync::Lazy;
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::fs::rename;
 use std::fs::write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 use tree_sitter::Node;
 use tree_sitter::Parser;
 use tree_sitter::Query;
@@ -15,7 +15,7 @@ use crate::cfg::CFG;
 use crate::error::WrapError;
 use crate::Error;
 
-const QUERY_TODO: Lazy<Rc<str>> = Lazy::new(|| {
+static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
     let todo_section_header = &CFG.todo_section_header;
     format!(
         r###"
@@ -54,8 +54,8 @@ const OTHER_SECTION: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct Todo {
-    pub content: Rc<str>,
-    pub id: Option<Rc<str>>,
+    pub content: Arc<str>,
+    pub id: Option<Arc<str>>,
     pub line: usize,
     pub state: State,
     pub bytes: TodoBytes,
@@ -153,8 +153,8 @@ impl ParsedNorg {
 
         let mut cursor = QueryCursor::new();
 
-        let get_content = |node: &Node| -> Result<Rc<str>, Error> {
-            Ok(Rc::from(
+        let get_content = |node: &Node| -> Result<Arc<str>, Error> {
+            Ok(Arc::from(
                 std::str::from_utf8(&source_code[node.start_byte()..node.end_byte()])?.trim(),
             ))
         };
@@ -197,11 +197,11 @@ impl ParsedNorg {
                                 .nodes_for_capture_index(idx.content)
                                 .next()
                                 .expect("no node for content");
-                            let content: Rc<str> = {
+                            let content: Arc<str> = {
                                 let content = get_content(&node_content)?;
                                 content
                                     .split_once('%')
-                                    .map(|(s, _)| Rc::from(s.trim()))
+                                    .map(|(s, _)| Arc::from(s.trim()))
                                     .unwrap_or(content)
                             };
 

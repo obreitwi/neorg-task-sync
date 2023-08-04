@@ -3,7 +3,7 @@ use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::auth::Authenticator;
 use crate::error::Error;
@@ -13,8 +13,8 @@ use crate::parse::Todo;
 #[derive(Debug, Clone)]
 pub struct Task {
     pub completed: bool,
-    pub id: Rc<str>,
-    pub title: Rc<str>,
+    pub id: Arc<str>,
+    pub title: Arc<str>,
 }
 
 impl TryFrom<&GTask> for Task {
@@ -35,7 +35,7 @@ impl TryFrom<&GTask> for Task {
                 .title
                 .as_ref()
                 .map(|s| s.as_str().into())
-                .unwrap_or_else(|| Rc::from(String::new())),
+                .unwrap_or_else(|| Arc::from(String::new())),
         })
     }
 }
@@ -167,7 +167,7 @@ pub async fn todo_create(
         .await
         .during("creating task")?;
 
-    todo.id = task.id.as_ref().map(|s| Rc::from(s.as_str()));
+    todo.id = task.id.as_ref().map(|s| Arc::from(s.as_str()));
     Task::try_from(&task)
 }
 
