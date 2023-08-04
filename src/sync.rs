@@ -1,6 +1,7 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::{fs, io};
 
 use crate::auth::Authenticator;
 use crate::cfg::CFG;
@@ -11,15 +12,20 @@ use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
     let tasklist: Arc<str> = CFG.tasklist.as_str().into();
-
-    let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
-
-    let original_tasks = tasks.clone();
+    let files = {
+        let mut files = get_files_from_folders(&opts.files_or_folders[..])?;
+        if !opts.without_sort {
+            files.sort();
+        }
+        files
+    };
 
     let mut todos = Vec::new();
+    let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
+    let original_tasks = tasks.clone();
 
-    let idx_last = opts.files.len() - 1;
-    for (i, file) in opts.files.iter().enumerate() {
+    let idx_last = files.len() - 1;
+    for (i, file) in files.iter().enumerate() {
         // Skip the file we want to pull to
         match (i, opts.pull_to_first) {
             (0, true) => continue,
@@ -54,7 +60,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         .cloned()
         .collect::<Vec<_>>();
 
-    let file_to_pull = &opts.files[if opts.pull_to_first { 0 } else { idx_last }];
+    let file_to_pull = &files[if opts.pull_to_first { 0 } else { idx_last }];
 
     let result = Syncer {
         pull_completed: !opts.without_local,
@@ -73,6 +79,28 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     );
 
     Ok(())
+}
+
+fn get_files_from_folders<P>(files_or_folders: &[P]) -> Result<Vec<PathBuf>, Error>
+where
+    P: AsRef<Path>,
+{
+    let mut files = Vec::new();
+    for p in files_or_folders.iter().map(|p| p.as_ref()) {
+        if p.is_dir() {
+            let paths = fs::read_dir(p)?.collect::<io::Result<Vec<_>>>()?;
+
+            for entry in paths {
+                let p = entry.path();
+                if p.is_file() {
+                    files.push(p);
+                }
+            }
+        } else if p.is_file() {
+            files.push(p.to_owned());
+        }
+    }
+    Ok(files)
 }
 
 struct Syncer {

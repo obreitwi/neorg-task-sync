@@ -157,28 +157,33 @@ pub struct Parse {
 /// Sync tasks (bread and butter)
 #[derive(Args, Debug)]
 pub struct Sync {
+    /// Files or folders to sync. New remote tasks will be synced into the last file specified
+    /// (after sorting).
     #[arg(required = true)]
-    /// Files to sync. New remote tasks will be synced into the last file specified.
-    pub files: Vec<PathBuf>,
+    pub files_or_folders: Vec<PathBuf>,
 
-    #[arg(short = 'f', long)]
     /// Pull new remote tasks to first file specified, instead.
+    #[arg(short = 'f', long)]
     pub pull_to_first: bool,
 
-    #[arg(short = 'L', long)]
+    /// Do not sort filenames prior to syncing.
+    #[arg(short = 's', long, alias = "wo-sor")]
+    pub without_sort: bool,
+
     /// Do not sync remote google tasks to local todos (neither create nor update status).
+    #[arg(short = 'L', long, alias = "wo-local")]
     pub without_local: bool,
 
-    #[arg(short = 'R', long)]
     /// Do not sync local todos to remote google tasks (neither create nor update status).
+    #[arg(short = 'R', long, alias = "wo-remote")]
     pub without_remote: bool,
 
-    #[arg(short = 'r', long)]
     /// Do not push local todos to google and create new tasks.
+    #[arg(short = 'r', long, alias = "wo-push")]
     pub without_push: bool,
 
-    #[arg(short = 'l', long)]
     /// Do not pull remote google tasks and insert them into the todo section.
+    #[arg(short = 'l', long, alias = "wo-pull")]
     pub without_pull: bool,
 }
 
