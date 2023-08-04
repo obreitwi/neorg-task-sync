@@ -148,6 +148,10 @@ pub struct Parse {
     /// What to generate
     #[arg(required = true)]
     pub target: PathBuf,
+
+    /// Force parsing even if extension does not match
+    #[arg(short, long)]
+    pub force_norg: bool,
 }
 
 /// Sync tasks (bread and butter)

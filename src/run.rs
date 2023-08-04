@@ -57,7 +57,7 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
         },
 
         Command::Parse(ref parse) => match parse.target.extension() {
-            Some(norg) if norg == "norg" => {
+            Some(norg) if norg == "norg" || parse.force_norg => {
                 let mut norg = ParsedNorg::parse(&parse.target)?;
                 log::debug!("{norg:#?}");
 
