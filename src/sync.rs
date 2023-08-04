@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::auth::Authenticator;
 use crate::cfg::CFG;
@@ -10,7 +10,7 @@ use crate::tasks::{get_tasks, task_mark_completed, todo_create, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
-    let tasklist: Rc<str> = CFG.tasklist.as_str().into();
+    let tasklist: Arc<str> = CFG.tasklist.as_str().into();
 
     let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
 
@@ -46,7 +46,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     }
 
     // Sync file that we pull to
-    let present_todo_ids: Vec<Rc<str>> = todos.iter().filter_map(|t| t.id.clone()).collect();
+    let present_todo_ids: Vec<Arc<str>> = todos.iter().filter_map(|t| t.id.clone()).collect();
     // tasks that were actually created new
     let new_remote_tasks = original_tasks
         .iter()
@@ -81,7 +81,7 @@ struct Syncer {
     pull_new: bool,
     push_new: bool,
 
-    tasklist: Rc<str>,
+    tasklist: Arc<str>,
 }
 
 #[derive(Debug, Clone)]
@@ -164,7 +164,7 @@ impl Syncer {
 
 // Sync completed tasks from remote to neorg
 fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> {
-    let remote_done: HashSet<Rc<str>> = tasks
+    let remote_done: HashSet<Arc<str>> = tasks
         .iter()
         .filter_map(|t| {
             if t.completed {
@@ -205,7 +205,7 @@ async fn sync_push_completed(
     norg: &mut ParsedNorg,
     tasks: &[Task],
 ) -> Result<usize, Error> {
-    let norg_done: HashSet<Rc<str>> = norg
+    let norg_done: HashSet<Arc<str>> = norg
         .todos
         .iter()
         .filter_map(|t| match (t.id.as_ref(), &t.state) {
@@ -232,7 +232,7 @@ async fn sync_push_completed(
 // Write to disk and reparse to get new tasks.
 // Does not write to disk.
 fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> {
-    let norg_ids: HashSet<Rc<str>> = norg.todos.iter().filter_map(|t| t.id.clone()).collect();
+    let norg_ids: HashSet<Arc<str>> = norg.todos.iter().filter_map(|t| t.id.clone()).collect();
 
     let mut lines = norg.lines();
 
