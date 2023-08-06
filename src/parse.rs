@@ -110,7 +110,7 @@ pub struct ParsedNorg {
     pub source_code: Vec<u8>,
     pub todos: Vec<Todo>,
     pub line_no: LineNo,
-    filename: PathBuf,
+    pub filename: PathBuf,
 }
 
 #[derive(Debug)]
