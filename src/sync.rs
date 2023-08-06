@@ -33,13 +33,8 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
             _ => {}
         }
 
-        let syncer = Syncer {
-            pull_completed: !opts.without_local,
-            push_completed: !opts.without_remote,
-            pull_new: false,
-            push_new: !opts.without_remote && !opts.without_push,
-            tasklist: tasklist.clone(),
-        };
+        let mut syncer = Syncer::from_opts(opts, tasklist.clone());
+        syncer.push_new = false;
 
         let result = syncer.perform(auth.clone(), file, &tasks[..]).await?;
         tasks = result.tasks_after;
@@ -62,15 +57,9 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
 
     let file_to_pull = &files[if opts.pull_to_first { 0 } else { idx_last }];
 
-    let result = Syncer {
-        pull_completed: !opts.without_local,
-        push_completed: !opts.without_remote,
-        pull_new: !opts.without_local && !opts.without_pull,
-        push_new: !opts.without_remote && !opts.without_push,
-        tasklist: tasklist.clone(),
-    }
-    .perform(auth.clone(), file_to_pull, &new_remote_tasks[..])
-    .await?;
+    let result = Syncer::from_opts(opts, tasklist.clone())
+        .perform(auth.clone(), file_to_pull, &new_remote_tasks[..])
+        .await?;
 
     println!(
         "{file}: {stats}",
@@ -190,6 +179,17 @@ impl Syncer {
             },
         })
     }
+
+    fn from_opts(opts: &SyncOpts, tasklist: Arc<str>) -> Syncer {
+        Syncer {
+            pull_completed: !opts.without_local,
+            push_completed: !opts.without_remote,
+            pull_new: !opts.without_local && !opts.without_pull,
+            push_new: !opts.without_remote && !opts.without_push,
+
+            tasklist,
+        }
+    }
 }
 
 // Sync completed tasks from remote to neorg
@@ -205,24 +205,26 @@ fn sync_pull_completed(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, E
         })
         .collect();
 
+    let idx_to_complete: Vec<_> = norg
+        .todos
+        .iter_mut()
+        .enumerate()
+        .filter_map(|(i, t)| {
+            if t.state != State::Done
+                && t.id.is_some()
+                && remote_done.contains(&t.id.clone().unwrap())
+            {
+                t.state = State::Done;
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let mut count = 0;
-    for todo in norg.todos.iter_mut().filter(|t| {
-        t.state != State::Done && t.id.is_some() && remote_done.contains(&t.id.clone().unwrap())
-    }) {
-        todo.state = State::Done;
-
-        let len_state = todo.bytes.state_end - todo.bytes.state_start;
-        if len_state != 1 {
-            log::warn!(
-                "expected single byte for state char, found {} bytes",
-                len_state
-            );
-        }
-
-        norg.source_code.splice(
-            todo.bytes.state_start..todo.bytes.state_end,
-            "x".as_bytes().iter().cloned(),
-        );
+    for idx in idx_to_complete {
+        norg.mark_completed(idx);
         count += 1;
     }
     Ok(count)
@@ -301,7 +303,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
         );
         count += 1;
     }
-    norg.source_code = lines.join("\n".as_bytes());
+    norg.set_lines(&lines[..]);
 
     Ok(count)
 }
@@ -331,7 +333,7 @@ async fn sync_push_new(
         todo.append_id(&mut lines[todo.line]);
     }
 
-    norg.source_code = lines.join("\n".as_bytes());
+    norg.set_lines(&lines[..]);
 
     Ok(new_tasks)
 }
