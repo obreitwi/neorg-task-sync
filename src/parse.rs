@@ -341,6 +341,29 @@ impl ParsedNorg {
         );
     }
 
+    // clear tags for all todo indices listed
+    pub fn clear_tags(&mut self, indices: &[usize]) {
+        let mut lines = self.lines();
+
+        for (idx, line) in lines
+            .iter_mut()
+            .enumerate()
+            .filter(|(idx, _line)| indices.contains(idx))
+        {
+            let todo = &mut self.todos[idx];
+
+            if todo.in_line.id_comment.is_none() {
+                let title = todo.content.clone();
+                log::warn!("Todo entry '{title}' does not contain a tag, skipping…");
+                continue;
+            }
+
+            let in_line = todo.in_line.id_comment.unwrap();
+            line.splice(in_line.start - 1..in_line.end, []);
+        }
+        self.set_lines(&lines[..])
+    }
+
     pub fn set_lines<'a, L, I>(&mut self, lines: L)
     where
         L: IntoIterator<Item = I>,
