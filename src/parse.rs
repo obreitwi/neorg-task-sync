@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tree_sitter::Node;
 use tree_sitter::Parser;
+use tree_sitter::Point;
 use tree_sitter::Query;
 use tree_sitter::QueryCursor;
 
@@ -22,7 +23,7 @@ static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
 (
  (unordered_list1
    state: (detached_modifier_extension [(todo_item_undone) (todo_item_done) (todo_item_pending)] @state )
-   content: (paragraph (paragraph_segment . (inline_comment . ("_open") . ("_word" @task-id-tag) . ("_word" @task-id-content) .  ("_close") . ))) @content
+   content: (paragraph (paragraph_segment . (inline_comment . ("_open") . ("_word" @task-id-tag) . ("_word" @task-id-content) .  ("_close") . ) @task-id-comment)) @content
  )
  (#match? @task-id-tag "#taskid")
 )
@@ -58,7 +59,9 @@ pub struct Todo {
     pub id: Option<Arc<str>>,
     pub line: usize,
     pub state: State,
+    // bytes are only valid if source code is not modified
     pub bytes: TodoBytes,
+    pub pos: TodoPoints,
 }
 
 impl Todo {
@@ -75,8 +78,54 @@ impl Todo {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TodoBytes {
-    pub state_start: usize,
-    pub state_end: usize,
+    pub state: ByteRange,
+    pub id_comment: Option<ByteRange>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TodoPoints {
+    pub state: PointRange,
+    pub id_comment: Option<PointRange>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ByteRange {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<Node<'_>> for ByteRange {
+    fn from(n: Node) -> Self {
+        Self::from(&n)
+    }
+}
+impl From<&Node<'_>> for ByteRange {
+    fn from(n: &Node) -> Self {
+        Self {
+            start: n.start_byte(),
+            end: n.end_byte(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PointRange {
+    pub start: Point,
+    pub end: Point,
+}
+
+impl From<Node<'_>> for PointRange {
+    fn from(n: Node) -> Self {
+        Self::from(&n)
+    }
+}
+impl From<&Node<'_>> for PointRange {
+    fn from(n: &Node) -> Self {
+        Self {
+            start: n.start_position(),
+            end: n.end_position(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -103,6 +152,7 @@ struct QueryIndices {
     id_content: u32,
     // id_tag: u32,
     state: u32,
+    id_comment: u32,
 }
 
 #[derive(Debug)]
@@ -180,9 +230,15 @@ impl ParsedNorg {
                         .expect("no node for state");
                     let state = State::from_kind(node_state.kind());
 
+                    let node_comment = m.nodes_for_capture_index(idx.id_comment).next();
+
                     let bytes = TodoBytes {
-                        state_start: node_state.start_byte(),
-                        state_end: node_state.end_byte(),
+                        state: node_state.into(),
+                        id_comment: node_comment.map(|n| n.into()),
+                    };
+                    let pos = TodoPoints {
+                        state: node_state.into(),
+                        id_comment: node_comment.map(|n| n.into()),
                     };
 
                     let todo = match m.pattern_index {
@@ -211,6 +267,7 @@ impl ParsedNorg {
                                 content,
                                 state,
                                 bytes,
+                                pos,
                             }
                         }
                         TODO_WITHOUT_TAG => {
@@ -230,6 +287,7 @@ impl ParsedNorg {
                                 content,
                                 state,
                                 bytes,
+                                pos,
                             }
                         }
 
@@ -269,7 +327,7 @@ impl ParsedNorg {
 
     pub fn mark_completed(&mut self, idx: usize) {
         let todo = &self.todos[idx];
-        let len_state = todo.bytes.state_end - todo.bytes.state_start;
+        let len_state = todo.bytes.state.end - todo.bytes.state.start;
         if len_state != 1 {
             log::warn!(
                 "expected single byte for state char, found {} bytes",
@@ -278,7 +336,7 @@ impl ParsedNorg {
         }
 
         self.source_code.splice(
-            todo.bytes.state_start..todo.bytes.state_end,
+            todo.bytes.state.start..todo.bytes.state.end,
             [b'x'].into_iter(),
         );
     }
@@ -304,6 +362,7 @@ fn get_query() -> Result<(Query, QueryIndices), Error> {
     let indices = QueryIndices {
         content: query.capture_index_for_name("content").unwrap(),
         id_content: query.capture_index_for_name("task-id-content").unwrap(),
+        id_comment: query.capture_index_for_name("task-id-comment").unwrap(),
         // id_tag: query.capture_index_for_name("task-id-tag").unwrap(),
         state: query.capture_index_for_name("state").unwrap(),
     };
