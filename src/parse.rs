@@ -107,7 +107,7 @@ struct QueryIndices {
 
 #[derive(Debug)]
 pub struct ParsedNorg {
-    pub source_code: Vec<u8>,
+    source_code: Vec<u8>,
     pub todos: Vec<Todo>,
     pub line_no: LineNo,
     pub filename: PathBuf,
@@ -265,6 +265,36 @@ impl ParsedNorg {
             },
             filename: file.into(),
         })
+    }
+
+    pub fn mark_completed(&mut self, idx: usize) {
+        let todo = &self.todos[idx];
+        let len_state = todo.bytes.state_end - todo.bytes.state_start;
+        if len_state != 1 {
+            log::warn!(
+                "expected single byte for state char, found {} bytes",
+                len_state
+            );
+        }
+
+        self.source_code.splice(
+            todo.bytes.state_start..todo.bytes.state_end,
+            [b'x'].into_iter(),
+        );
+    }
+
+    pub fn set_lines<'a, L, I>(&mut self, lines: L)
+    where
+        L: IntoIterator<Item = I>,
+        I: IntoIterator<Item = &'a u8>,
+    {
+        let mut source_code = Vec::new();
+        for l in lines.into_iter() {
+            source_code.extend(l.into_iter());
+            source_code.push(b'\n');
+        }
+
+        self.source_code = source_code;
     }
 }
 
