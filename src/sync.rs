@@ -34,7 +34,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         }
 
         let mut syncer = Syncer::from_opts(opts, tasklist.clone());
-        syncer.push_new = false;
+        syncer.pull_new = false;
 
         let result = syncer.perform(auth.clone(), file, &tasks[..]).await?;
         tasks = result.tasks_after;
@@ -93,6 +93,8 @@ where
 }
 
 struct Syncer {
+    fix_missing: bool,
+
     pull_completed: bool,
     push_completed: bool,
     pull_new: bool,
@@ -135,7 +137,7 @@ impl Syncer {
         file: &Path,
         tasks: &[Task],
     ) -> Result<SyncResult, Error> {
-        let mut norg = ParsedNorg::parse(file)?;
+        let mut norg = ParsedNorg::open(file)?;
 
         let mut tasks_after: Vec<Task> = tasks.to_vec();
 
@@ -158,14 +160,34 @@ impl Syncer {
             num_push_completed =
                 sync_push_completed(auth.clone(), &self.tasklist, &mut norg, tasks).await?;
         }
+
+        let missing = check_missing_remote_tasks(&tasks_after[..], &norg);
+        if self.fix_missing {
+            let missing_idx = norg
+                .todos
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, t)| {
+                    if missing.iter().find(|m| m.id == t.id).is_some() {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let num = missing_idx.len();
+            log::info!("Clearing {num} tasks that are not present remote to re-create them.");
+            norg.clear_tags(&missing_idx)?;
+        } else {
+            warn_missing_remote_tasks(file, missing);
+        }
+
         log::trace!("Pre-push new:\n{norg:#?}");
         if self.push_new {
             let pushed = sync_push_new(auth.clone(), &self.tasklist, &mut norg).await?;
             num_push_new = pushed.len();
             tasks_after.extend(pushed);
         }
-
-        check_missing_remote_tasks(&tasks_after[..], &norg);
 
         norg.write()?;
         Ok(SyncResult {
@@ -182,6 +204,8 @@ impl Syncer {
 
     fn from_opts(opts: &SyncOpts, tasklist: Arc<str>) -> Syncer {
         Syncer {
+            fix_missing: opts.fix_missing,
+
             pull_completed: !opts.without_local,
             push_completed: !opts.without_remote,
             pull_new: !opts.without_local && !opts.without_pull,
@@ -303,7 +327,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
         );
         count += 1;
     }
-    norg.set_lines(&lines[..]);
+    norg.set_lines(&lines[..])?;
 
     Ok(count)
 }
@@ -332,22 +356,24 @@ async fn sync_push_new(
         new_tasks.push(todo_create(auth.clone(), tasklist, todo).await?);
         todo.append_id(&mut lines[todo.line]);
     }
-
-    norg.set_lines(&lines[..]);
-
+    norg.set_lines(&lines[..])?;
     Ok(new_tasks)
 }
 
 // Check for undone todos with ID that do not have a corresponding task remote.
-fn check_missing_remote_tasks(tasks: &[Task], norg: &ParsedNorg) {
+fn check_missing_remote_tasks<'a>(tasks: &[Task], norg: &'a ParsedNorg) -> Vec<&'a Todo> {
     let task_ids = tasks.iter().map(|t| t.id.clone()).collect::<HashSet<_>>();
+    norg.todos
+        .iter()
+        .filter(|t| {
+            t.state == State::Undone && t.id.is_some() && !task_ids.contains(t.id.as_ref().unwrap())
+        })
+        .collect::<Vec<_>>()
+}
 
-    let missing = norg.todos.iter().filter(|t| {
-        t.state == State::Undone && t.id.is_some() && !task_ids.contains(t.id.as_ref().unwrap())
-    });
-
-    for m in missing {
-        let file = norg.filename.display();
+fn warn_missing_remote_tasks<'a, I: IntoIterator<Item = &'a Todo>>(filename: &Path, missing: I) {
+    for m in missing.into_iter() {
+        let file = filename.display();
         let task = m.content.clone();
         log::warn!("{file}: task '{task}' unexpectedly deleted from Google Tasks. Sync with --fix-missing to re-create.");
     }

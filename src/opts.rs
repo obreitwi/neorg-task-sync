@@ -162,6 +162,9 @@ pub struct Sync {
     #[arg(required = true)]
     pub files_or_folders: Vec<PathBuf>,
 
+    #[arg(long)]
+    pub fix_missing: bool,
+
     /// Pull new remote tasks to first file specified, instead.
     #[arg(short = 'f', long)]
     pub pull_to_first: bool,
