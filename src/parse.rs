@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tree_sitter::Node;
 use tree_sitter::Parser;
-use tree_sitter::Point;
 use tree_sitter::Query;
 use tree_sitter::QueryCursor;
 
@@ -61,7 +60,8 @@ pub struct Todo {
     pub state: State,
     // bytes are only valid if source code is not modified
     pub bytes: TodoBytes,
-    pub pos: TodoPoints,
+    // positions that operate in a single line, points stay valid until the given line is modified
+    pub in_line: TodoInLine,
 }
 
 impl Todo {
@@ -83,9 +83,9 @@ pub struct TodoBytes {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TodoPoints {
-    pub state: PointRange,
-    pub id_comment: Option<PointRange>,
+pub struct TodoInLine {
+    pub state: InLineRange,
+    pub id_comment: Option<InLineRange>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,21 +109,21 @@ impl From<&Node<'_>> for ByteRange {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PointRange {
-    pub start: Point,
-    pub end: Point,
+pub struct InLineRange {
+    pub start: usize,
+    pub end: usize,
 }
 
-impl From<Node<'_>> for PointRange {
+impl From<Node<'_>> for InLineRange {
     fn from(n: Node) -> Self {
         Self::from(&n)
     }
 }
-impl From<&Node<'_>> for PointRange {
+impl From<&Node<'_>> for InLineRange {
     fn from(n: &Node) -> Self {
         Self {
-            start: n.start_position(),
-            end: n.end_position(),
+            start: n.start_position().column,
+            end: n.end_position().column,
         }
     }
 }
@@ -236,7 +236,7 @@ impl ParsedNorg {
                         state: node_state.into(),
                         id_comment: node_comment.map(|n| n.into()),
                     };
-                    let pos = TodoPoints {
+                    let in_line = TodoInLine {
                         state: node_state.into(),
                         id_comment: node_comment.map(|n| n.into()),
                     };
@@ -267,7 +267,7 @@ impl ParsedNorg {
                                 content,
                                 state,
                                 bytes,
-                                pos,
+                                in_line,
                             }
                         }
                         TODO_WITHOUT_TAG => {
@@ -287,7 +287,7 @@ impl ParsedNorg {
                                 content,
                                 state,
                                 bytes,
-                                pos,
+                                in_line,
                             }
                         }
 
@@ -353,6 +353,8 @@ impl ParsedNorg {
         }
 
         self.source_code = source_code;
+
+        // TODO: Re-parse todos
     }
 }
 
