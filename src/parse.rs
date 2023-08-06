@@ -155,7 +155,7 @@ struct QueryIndices {
     id_comment: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParsedNorg {
     source_code: Vec<u8>,
     pub todos: Vec<Todo>,
@@ -167,6 +167,15 @@ pub struct ParsedNorg {
 pub struct LineNo {
     pub todo_section: usize,
     pub section_after_todo: usize,
+}
+
+impl Default for LineNo {
+    fn default() -> Self {
+        Self {
+            todo_section: usize::MAX,
+            section_after_todo: usize::MAX,
+        }
+    }
 }
 
 impl ParsedNorg {
@@ -184,7 +193,18 @@ impl ParsedNorg {
         Ok(())
     }
 
-    pub fn parse(file: &Path) -> Result<Self, Error> {
+    pub fn open(file: &Path) -> Result<Self, Error> {
+        let source_code = read_to_string(file).during("reading norg file")?;
+
+        let mut new = ParsedNorg {
+            filename: file.into(),
+            ..Self::default()
+        };
+        new.reparse(source_code.as_bytes().to_vec())?;
+        Ok(new)
+    }
+
+    pub fn reparse(&mut self, source_code: Vec<u8>) -> Result<(), Error> {
         let (query, idx) = get_query()?;
 
         let mut todos = HashMap::new();
@@ -192,12 +212,9 @@ impl ParsedNorg {
         let mut parser = Parser::new();
         parser.set_language(tree_sitter_norg::language())?;
 
-        let source_code = read_to_string(file).during("reading norg file")?;
         let tree = parser
-            .parse(&source_code, None)
+            .parse(&source_code[..], None)
             .ok_or_else(|| Error::Parse)?;
-        let source_code = source_code.into_bytes();
-        // source_code.split(|s| *s == ('\n' as u8));
 
         log::debug!("Tree: {:#?}", tree);
 
@@ -310,19 +327,20 @@ impl ParsedNorg {
 
         let mut todos = todos.into_values().collect::<Vec<_>>();
         todos.sort_by_key(|t| t.line);
-        Ok(ParsedNorg {
-            todos,
-            source_code,
-            line_no: LineNo {
-                todo_section: line_no_todo_section,
-                section_after_todo: line_no_sections
-                    .into_iter()
-                    .filter(|l| *l > line_no_todo_section)
-                    .max()
-                    .unwrap_or(usize::MAX),
-            },
-            filename: file.into(),
-        })
+
+        self.todos = todos;
+        self.source_code = source_code;
+
+        self.line_no = LineNo {
+            todo_section: line_no_todo_section,
+            section_after_todo: line_no_sections
+                .into_iter()
+                .filter(|l| *l > line_no_todo_section)
+                .max()
+                .unwrap_or(usize::MAX),
+        };
+
+        Ok(())
     }
 
     pub fn mark_completed(&mut self, idx: usize) {
@@ -342,7 +360,7 @@ impl ParsedNorg {
     }
 
     // clear tags for all todo indices listed
-    pub fn clear_tags(&mut self, indices: &[usize]) {
+    pub fn clear_tags(&mut self, indices: &[usize]) -> Result<(), Error> {
         let mut lines = self.lines();
 
         for (idx, line) in lines
@@ -364,7 +382,7 @@ impl ParsedNorg {
         self.set_lines(&lines[..])
     }
 
-    pub fn set_lines<'a, L, I>(&mut self, lines: L)
+    pub fn set_lines<'a, L, I>(&mut self, lines: L) -> Result<(), Error>
     where
         L: IntoIterator<Item = I>,
         I: IntoIterator<Item = &'a u8>,
@@ -375,9 +393,7 @@ impl ParsedNorg {
             source_code.push(b'\n');
         }
 
-        self.source_code = source_code;
-
-        // TODO: Re-parse todos
+        self.reparse(source_code)
     }
 }
 
