@@ -41,11 +41,13 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         let result = syncer.perform(auth.clone(), file, &tasks[..]).await?;
         tasks = result.tasks_after;
         todos.extend(result.todos_present);
-        println!(
-            "{file}: {stats}",
-            file = file.display(),
-            stats = result.stats
-        );
+        if result.stats.any_change() {
+            println!(
+                "{file}: {stats}",
+                file = file.display(),
+                stats = result.stats
+            );
+        }
     }
 
     // Sync file that we pull to
@@ -63,11 +65,13 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         .perform(auth.clone(), file_to_pull, &new_remote_tasks[..])
         .await?;
 
-    println!(
-        "{file}: {stats}",
-        file = file_to_pull.display(),
-        stats = result.stats
-    );
+    if result.stats.any_change() {
+        println!(
+            "{file}: {stats}",
+            file = file_to_pull.display(),
+            stats = result.stats
+        );
+    }
 
     Ok(())
 }
@@ -131,6 +135,16 @@ impl std::fmt::Display for SyncStats {
         pull_new=self.num_pull_new,
         push_new=self.num_push_new,
         )
+    }
+}
+
+impl SyncStats {
+    fn any_change(&self) -> bool {
+        (self.num_pull_new + self.num_pull_completed + self.num_push_new + self.num_push_completed)
+            > 0
+    }
+    fn modified_file(&self) -> bool {
+        (self.num_pull_new + self.num_pull_completed + self.num_push_new) > 0
     }
 }
 
@@ -200,17 +214,20 @@ impl Syncer {
             num_push_new = pushed.len();
             tasks_after.extend(pushed);
         }
+        let stats = SyncStats {
+            num_pull_completed,
+            num_push_completed,
+            num_pull_new,
+            num_push_new,
+        };
 
-        norg.write()?;
+        if stats.modified_file() {
+            norg.write()?;
+        }
         Ok(SyncResult {
             tasks_after,
             todos_present: norg.todos,
-            stats: SyncStats {
-                num_pull_completed,
-                num_push_completed,
-                num_pull_new,
-                num_push_new,
-            },
+            stats,
         })
     }
 
