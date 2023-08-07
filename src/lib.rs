@@ -3,6 +3,7 @@ mod cfg;
 mod error;
 mod opts;
 mod parse;
+mod progress_bar;
 mod run;
 mod sync;
 mod tasks;

@@ -1,3 +1,4 @@
+use indicatif::ProgressIterator;
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -8,6 +9,7 @@ use crate::auth::Authenticator;
 use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
+use crate::progress_bar::style_progress_bar_count;
 use crate::tasks::{get_tasks, task_mark_completed, todo_create, Task};
 use crate::Error;
 
@@ -27,7 +29,12 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     let original_tasks = tasks.clone();
 
     let idx_last = files.len() - 1;
-    for (i, file) in files.iter().enumerate() {
+    for (i, file) in files
+        .iter()
+        .enumerate()
+        .progress_with_style(style_progress_bar_count())
+        .with_message("Syncing…")
+    {
         // Skip the file we want to pull to
         match (i, opts.pull_to_first) {
             (0, true) => continue,
