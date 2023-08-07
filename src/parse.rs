@@ -397,18 +397,22 @@ impl ParsedNorg {
     }
 }
 
-fn get_query() -> Result<(Query, QueryIndices), Error> {
-    let query = Query::new(tree_sitter_norg::language(), &QUERY_TODO.clone())?;
-
+fn get_query() -> Result<(Arc<Query>, QueryIndices), Error> {
+    static QUERY: Lazy<Arc<Query>> = Lazy::new(|| {
+        Arc::new(
+            Query::new(tree_sitter_norg::language(), &QUERY_TODO.clone())
+                .expect("could not parse query"),
+        )
+    });
     let indices = QueryIndices {
-        content: query.capture_index_for_name("content").unwrap(),
-        id_content: query.capture_index_for_name("task-id-content").unwrap(),
-        id_comment: query.capture_index_for_name("task-id-comment").unwrap(),
+        content: QUERY.capture_index_for_name("content").unwrap(),
+        id_content: QUERY.capture_index_for_name("task-id-content").unwrap(),
+        id_comment: QUERY.capture_index_for_name("task-id-comment").unwrap(),
         // id_tag: query.capture_index_for_name("task-id-tag").unwrap(),
-        state: query.capture_index_for_name("state").unwrap(),
+        state: QUERY.capture_index_for_name("state").unwrap(),
     };
 
-    Ok((query, indices))
+    Ok((QUERY.clone(), indices))
 }
 
 #[cfg(test)]

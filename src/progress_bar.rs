@@ -15,6 +15,7 @@ pub fn style_progress_bar_count() -> indicatif::ProgressStyle {
 mod tests {
     use super::*;
 
+    #[test]
     fn pbar() {
         style_progress_bar_count();
     }
