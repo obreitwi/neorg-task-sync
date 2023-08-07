@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{fs, io};
@@ -13,7 +14,8 @@ use crate::Error;
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
     let tasklist: Arc<str> = CFG.tasklist.as_str().into();
     let files = {
-        let mut files = get_files_from_folders(&opts.files_or_folders[..])?;
+        let mut files =
+            get_files_from_folders(&opts.files_or_folders[..], &CFG.ignore_filenames[..])?;
         if !opts.without_sort {
             files.sort();
         }
@@ -70,7 +72,10 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     Ok(())
 }
 
-fn get_files_from_folders<P>(files_or_folders: &[P]) -> Result<Vec<PathBuf>, Error>
+fn get_files_from_folders<P>(
+    files_or_folders: &[P],
+    ignored_filenames: &[String],
+) -> Result<Vec<PathBuf>, Error>
 where
     P: AsRef<Path>,
 {
@@ -81,7 +86,14 @@ where
 
             for entry in paths {
                 let p = entry.path();
-                if p.is_file() {
+                if p.is_file()
+                    && p.extension() == Some(&OsString::from("norg"))
+                    && !ignored_filenames.contains(
+                        &p.file_name()
+                            .map(|f| f.to_string_lossy().to_string())
+                            .unwrap_or(String::new()),
+                    )
+                {
                     files.push(p);
                 }
             }

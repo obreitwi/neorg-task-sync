@@ -17,6 +17,7 @@ static BASE_DIRS: Lazy<BaseDirs> = Lazy::new(|| BaseDirs::new().expect("failed t
 pub struct Config {
     pub tasklist: String,
     pub todo_section_header: String,
+    pub ignore_filenames: Vec<String>,
 }
 
 impl Default for Config {
@@ -24,6 +25,7 @@ impl Default for Config {
         Self {
             tasklist: String::new(),
             todo_section_header: "TODOs".into(),
+            ignore_filenames: vec!["index.norg".into()],
         }
     }
 }
