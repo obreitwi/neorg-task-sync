@@ -229,6 +229,7 @@ impl Syncer {
         };
 
         if stats.modified_file() {
+            norg.backup()?;
             norg.write()?;
         }
         Ok(SyncResult {
