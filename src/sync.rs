@@ -359,7 +359,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
 
         lines.insert(
             line_to_insert,
-            format!(" - ( ) {title} %#taskid {id}%").into_bytes(),
+            format!("  - ( ) {title} %#taskid {id}%").into_bytes(),
         );
         count += 1;
     }
