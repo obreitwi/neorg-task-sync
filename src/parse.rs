@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::fs::read_to_string;
-use std::fs::rename;
-use std::fs::write;
+use std::env;
+use std::fs::canonicalize;
+use std::fs
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -186,15 +186,21 @@ impl ParsedNorg {
             .collect()
     }
 
-    pub fn write(&self) -> Result<(), Error> {
-        rename(&self.filename, self.filename.with_extension("norg.bak"))?;
-        write(&self.filename, &self.source_code[..])?;
+    pub fn backup(&self) -> Result<(), Error>  {
+        let full = fs::canonicalize(&self.filename)?;
+        let full_name = full.to_string_lossy().replace('/', "%");
+        let copy_to = env::temp_dir().join(format!("neorg_task_sync_{}", full_name));
+        fs::copy(&self.filename, copy_to)?;
+        Ok(())
+    }
 
+    pub fn write(&self) -> Result<(), Error> {
+        fs::write(&self.filename, &self.source_code[..])?;
         Ok(())
     }
 
     pub fn open(file: &Path) -> Result<Self, Error> {
-        let source_code = read_to_string(file).during("reading norg file")?;
+        let source_code = fs::read_to_string(file).during("reading norg file")?;
 
         let mut new = ParsedNorg {
             filename: file.into(),
