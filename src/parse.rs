@@ -1,8 +1,7 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
-use std::fs::canonicalize;
-use std::fs
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -186,7 +185,7 @@ impl ParsedNorg {
             .collect()
     }
 
-    pub fn backup(&self) -> Result<(), Error>  {
+    pub fn backup(&self) -> Result<(), Error> {
         let full = fs::canonicalize(&self.filename)?;
         let full_name = full.to_string_lossy().replace('/', "%");
         let copy_to = env::temp_dir().join(format!("neorg_task_sync_{}", full_name));
