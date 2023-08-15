@@ -28,6 +28,8 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     let mut tasks = get_tasks(auth.clone(), &tasklist).await?;
     let original_tasks = tasks.clone();
 
+    let mut stats = Vec::new();
+
     let idx_last = files.len() - 1;
     for (i, file) in files
         .iter()
@@ -48,13 +50,8 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         let result = syncer.perform(auth.clone(), file, &tasks[..]).await?;
         tasks = result.tasks_after;
         todos.extend(result.todos_present);
-        if result.stats.any_change() {
-            println!(
-                "{file}: {stats}",
-                file = file.display(),
-                stats = result.stats
-            );
-        }
+
+        stats.push(result.stats);
     }
 
     // Sync file that we pull to
@@ -71,13 +68,14 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     let result = Syncer::from_opts(opts, tasklist.clone())
         .perform(auth.clone(), file_to_pull, &new_remote_tasks[..])
         .await?;
+    if opts.pull_to_first {
+        stats.insert(0, result.stats);
+    } else {
+        stats.push(result.stats);
+    }
 
-    if result.stats.any_change() {
-        println!(
-            "{file}: {stats}",
-            file = file_to_pull.display(),
-            stats = result.stats
-        );
+    for s in stats.iter().filter(|s| s.any_change()) {
+        println!("{}", s);
     }
 
     Ok(())
@@ -128,6 +126,7 @@ struct Syncer {
 
 #[derive(Debug, Clone)]
 struct SyncStats {
+    file: PathBuf,
     num_pull_completed: usize,
     num_push_completed: usize,
     num_pull_new: usize,
@@ -136,7 +135,8 @@ struct SyncStats {
 
 impl std::fmt::Display for SyncStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new tasks",
+        write!(f, "{file}: pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new tasks",
+        file=self.file.display(),
         pull_completed=self.num_pull_completed,
         push_completed=self.num_push_completed,
         pull_new=self.num_pull_new,
@@ -222,6 +222,7 @@ impl Syncer {
             tasks_after.extend(pushed);
         }
         let stats = SyncStats {
+            file: file.to_path_buf(),
             num_pull_completed,
             num_push_completed,
             num_pull_new,
