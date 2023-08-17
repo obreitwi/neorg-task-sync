@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
@@ -15,6 +17,7 @@ pub struct Task {
     pub completed: bool,
     pub id: Arc<str>,
     pub title: Arc<str>,
+    pub modified_at: DateTime<Utc>,
 }
 
 impl TryFrom<&GTask> for Task {
@@ -36,6 +39,10 @@ impl TryFrom<&GTask> for Task {
                 .as_ref()
                 .map(|s| s.as_str().into())
                 .unwrap_or_else(|| Arc::from(String::new())),
+            modified_at: DateTime::parse_from_rfc3339(
+                &task.updated.as_ref().expect("no updated time"),
+            )?
+            .into(),
         })
     }
 }
