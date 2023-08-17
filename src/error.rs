@@ -43,6 +43,12 @@ pub enum Error {
     #[error("failed to parse")]
     Parse,
 
+    #[error("failed to parse time: {source}")]
+    ParseTime {
+        #[from]
+        source: chrono::ParseError,
+    },
+
     #[error("oauth2: {source}")]
     OAuth2 {
         #[from]

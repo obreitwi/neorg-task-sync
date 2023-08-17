@@ -82,7 +82,9 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
         Command::Sync(ref sync) => perform_sync(auth::login().await?, sync).await?,
 
         Command::Tasks => {
-            get_tasks(auth::login().await?, &CFG.tasklist).await?;
+            for task in get_tasks(auth::login().await?, &CFG.tasklist).await? {
+                log::info!("{task:#?}");
+            }
         }
     }
     Ok(())
