@@ -23,7 +23,7 @@ static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
 (
  (unordered_list1
    state: (detached_modifier_extension [(todo_item_undone) (todo_item_done) (todo_item_pending)] @state )
-   content: (paragraph (paragraph_segment (inline_comment . ("_open") . ("_word" @task-id-tag) . ("_word" @task-id-content) .  ("_close") . ) @task-id-comment)) @content
+   content: (paragraph (paragraph_segment (inline_comment . ("_open") . ("_word" @task-id-tag) . ("_word" @task-id-content) .  ("_close") . ) @task-id-comment) @content )
  )
  (#match? @task-id-tag "#taskid")
 )
@@ -79,14 +79,16 @@ impl Todo {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TodoBytes {
-    pub state: ByteRange,
+    pub content: ByteRange,
     pub id_comment: Option<ByteRange>,
+    pub state: ByteRange,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct TodoInLine {
-    pub state: InLineRange,
+    pub content: InLineRange,
     pub id_comment: Option<InLineRange>,
+    pub state: InLineRange,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -262,14 +264,23 @@ impl ParsedNorg {
 
                     let node_comment = m.nodes_for_capture_index(idx.id_comment).next();
 
-                    let bytes = TodoBytes {
-                        state: node_state.into(),
+                    let node_content = m
+                        .nodes_for_capture_index(idx.content)
+                        .next()
+                        .expect("no node for content");
+
+                    let mut bytes = TodoBytes {
+                        content: node_content.into(),
                         id_comment: node_comment.map(|n| n.into()),
-                    };
-                    let in_line = TodoInLine {
                         state: node_state.into(),
-                        id_comment: node_comment.map(|n| n.into()),
                     };
+                    let mut in_line = TodoInLine {
+                        content: node_content.into(),
+                        id_comment: node_comment.map(|n| n.into()),
+                        state: node_state.into(),
+                    };
+
+                    let line = node_state.start_position().row;
 
                     let todo = match m.pattern_index {
                         TODO_WITH_TAG => {
@@ -279,10 +290,6 @@ impl ParsedNorg {
                                 .expect("no node for tag content");
                             let id = get_content(&node_id)?;
 
-                            let node_content = m
-                                .nodes_for_capture_index(idx.content)
-                                .next()
-                                .expect("no node for content");
                             let content: Arc<str> = {
                                 let content = get_content(&node_content)?;
                                 content
@@ -291,8 +298,11 @@ impl ParsedNorg {
                                     .unwrap_or(content)
                             };
 
+                            bytes.content.end = bytes.id_comment.as_ref().unwrap().start - 2;
+                            in_line.content.end = in_line.id_comment.as_ref().unwrap().start - 2;
+
                             Todo {
-                                line: node_state.start_position().row,
+                                line,
                                 id: Some(id),
                                 content,
                                 state,
@@ -301,18 +311,13 @@ impl ParsedNorg {
                             }
                         }
                         TODO_WITHOUT_TAG => {
-                            let node = m
-                                .nodes_for_capture_index(idx.content)
-                                .next()
-                                .expect("no content nodes");
-                            let line = node.start_position().row;
                             if todos.contains_key(&line) {
                                 continue;
                             }
-                            let content = get_content(&node)?;
+                            let content = get_content(&node_content)?;
 
                             Todo {
-                                line: node_state.start_position().row,
+                                line,
                                 id: None,
                                 content,
                                 state,
