@@ -53,7 +53,7 @@ const TODO_WITHOUT_TAG: usize = 1;
 const TODO_SECTION: usize = 2;
 const OTHER_SECTION: usize = 3;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Todo {
     pub content: Arc<str>,
     pub id: Option<Arc<str>>,
@@ -77,21 +77,21 @@ impl Todo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TodoBytes {
     pub content: ByteRange,
     pub id_comment: Option<ByteRange>,
     pub state: ByteRange,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TodoInLine {
     pub content: InLineRange,
     pub id_comment: Option<InLineRange>,
     pub state: InLineRange,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ByteRange {
     pub start: usize,
     pub end: usize,
@@ -111,7 +111,7 @@ impl From<&Node<'_>> for ByteRange {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InLineRange {
     pub start: usize,
     pub end: usize,
@@ -150,6 +150,7 @@ impl State {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct QueryIndices {
     content: u32,
     id_content: u32,
@@ -158,7 +159,7 @@ struct QueryIndices {
     id_comment: u32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct ParsedNorg {
     source_code: Vec<u8>,
     pub todos: Vec<Todo>,
@@ -167,7 +168,7 @@ pub struct ParsedNorg {
     pub modified_at: DateTime<Utc>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct LineNo {
     pub todo_section: usize,
     pub section_after_todo: usize,
@@ -298,8 +299,8 @@ impl ParsedNorg {
                                     .unwrap_or(content)
                             };
 
-                            bytes.content.end = bytes.id_comment.as_ref().unwrap().start - 2;
-                            in_line.content.end = in_line.id_comment.as_ref().unwrap().start - 2;
+                            bytes.content.end = bytes.id_comment.as_ref().unwrap().start - 1;
+                            in_line.content.end = in_line.id_comment.as_ref().unwrap().start - 1;
 
                             Todo {
                                 line,
@@ -358,6 +359,26 @@ impl ParsedNorg {
                 .unwrap_or(usize::MAX),
         };
 
+        Ok(())
+    }
+
+    pub fn update_task_titles<S, I>(&mut self, items: I) -> Result<(), Error>
+    where
+        S: ToString,
+        I: IntoIterator<Item = (usize, S)>,
+    {
+        let mut lines = self.lines();
+
+        for (idx, s) in items.into_iter() {
+            let todo = &self.todos[idx];
+            let range = todo.in_line.content;
+            lines[todo.line].splice(
+                range.start..range.end,
+                format!(" {}", s.to_string()).bytes(),
+            );
+        }
+
+        self.set_lines(&lines[..])?;
         Ok(())
     }
 
@@ -437,8 +458,43 @@ fn get_query() -> Result<(Arc<Query>, QueryIndices), Error> {
 mod test {
     use super::*;
 
+    use pretty_assertions::assert_eq;
+
+    static TEMP_NORG_GIVEN: &str = r###"
+
+* TODOs
+  - ( ) This is a test %#taskid foobar1%
+  - ( ) This is yet another test %#taskid foobar2%
+  - ( ) And for good measure a third task %#taskid foobar3%
+
+"###;
+    static TEMP_NORG_WANT: &str = r###"
+
+* TODOs
+  - ( ) This is a test %#taskid foobar1%
+  - ( ) this is a test %#taskid foobar2%
+  - ( ) another test %#taskid foobar3%
+
+
+"###;
+
     #[test]
     fn build_query() {
         get_query().unwrap();
+    }
+
+    #[test]
+    fn update_task_titles() -> Result<(), Error> {
+        let filename = std::env::temp_dir().join("temp.norg");
+        fs::write(&filename, TEMP_NORG_GIVEN)?;
+        let mut norg = ParsedNorg::open(&filename)?;
+        norg.update_task_titles([(2, "another test"), (1, "this is a test")])?;
+        norg.write()?;
+
+        let got = fs::read_to_string(filename)?;
+
+        assert_eq!(got, TEMP_NORG_WANT);
+
+        Ok(())
     }
 }
