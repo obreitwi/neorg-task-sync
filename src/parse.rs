@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::Utc;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
@@ -160,6 +162,7 @@ pub struct ParsedNorg {
     pub todos: Vec<Todo>,
     pub line_no: LineNo,
     pub filename: PathBuf,
+    pub modified_at: DateTime<Utc>,
 }
 
 #[derive(Debug)]
@@ -199,10 +202,15 @@ impl ParsedNorg {
     }
 
     pub fn open(file: &Path) -> Result<Self, Error> {
+        let metadata = fs::metadata(file).during("reading metadata")?;
         let source_code = fs::read_to_string(file).during("reading norg file")?;
 
         let mut new = ParsedNorg {
             filename: file.into(),
+            modified_at: metadata
+                .modified()
+                .during("getting modification date")?
+                .into(),
             ..Self::default()
         };
         new.reparse(source_code.as_bytes().to_vec())?;
