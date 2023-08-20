@@ -157,7 +157,7 @@ pub async fn task_mark_completed(
     Ok(())
 }
 
-pub async fn todo_create(
+pub async fn task_create(
     auth: Authenticator,
     tasklist: &str,
     todo: &mut Todo,
