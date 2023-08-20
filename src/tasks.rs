@@ -131,11 +131,7 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
     Ok(tasks)
 }
 
-pub async fn task_mark_completed(
-    auth: Authenticator,
-    tasklist: &str,
-    task: &str,
-) -> Result<(), Error> {
+pub async fn task_complete(auth: Authenticator, tasklist: &str, task: &str) -> Result<(), Error> {
     let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
 
     if gtask.completed.is_some() {
@@ -176,6 +172,33 @@ pub async fn task_create(
 
     todo.id = task.id.as_ref().map(|s| Arc::from(s.as_str()));
     Task::try_from(&task)
+}
+
+pub async fn task_update_title(
+    auth: Authenticator,
+    tasklist: &str,
+    task: &str,
+    title: &str,
+) -> Result<(), Error> {
+    let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
+
+    if gtask.completed.is_some() {
+        log::warn!(
+            "Task already completed: {}",
+            gtask.title.as_deref().unwrap_or(task)
+        )
+    }
+    gtask.title = Some(title.into());
+
+    let hub = create_hub(auth);
+
+    hub.tasks()
+        .update(gtask, tasklist, task)
+        .doit()
+        .await
+        .during("setting task done")?;
+
+    Ok(())
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
