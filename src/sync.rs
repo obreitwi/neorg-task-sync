@@ -10,7 +10,7 @@ use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
 use crate::progress_bar::style_progress_bar_count;
-use crate::tasks::{get_tasks, task_mark_completed, todo_create, Task};
+use crate::tasks::{get_tasks, task_mark_completed, task_create, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
@@ -391,7 +391,7 @@ async fn sync_push_new(
 
     let mut new_tasks = Vec::new();
     for todo in todo_to_create {
-        new_tasks.push(todo_create(auth.clone(), tasklist, todo).await?);
+        new_tasks.push(task_create(auth.clone(), tasklist, todo).await?);
         todo.append_id(&mut lines[todo.line]);
     }
     norg.set_lines(&lines[..])?;
