@@ -10,7 +10,7 @@ use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
 use crate::progress_bar::style_progress_bar_count;
-use crate::tasks::{get_tasks, task_mark_completed, task_create, Task};
+use crate::tasks::{get_tasks, task_complete, task_create, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
@@ -314,7 +314,7 @@ async fn sync_push_completed(
         .filter(|t| !t.completed && norg_done.contains(&t.id))
     {
         log::info!("Marking '{title}' as done.", title = task.title);
-        task_mark_completed(auth.clone(), tasklist, &task.id).await?;
+        task_complete(auth.clone(), tasklist, &task.id).await?;
         count += 1;
     }
 
