@@ -179,7 +179,7 @@ pub async fn task_update_title(
     tasklist: &str,
     task: &str,
     title: &str,
-) -> Result<(), Error> {
+) -> Result<GTask, Error> {
     let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
 
     if gtask.completed.is_some() {
@@ -192,13 +192,14 @@ pub async fn task_update_title(
 
     let hub = create_hub(auth);
 
-    hub.tasks()
+    let (_response, task) = hub
+        .tasks()
         .update(gtask, tasklist, task)
         .doit()
         .await
         .during("setting task done")?;
 
-    Ok(())
+    Ok(task)
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
