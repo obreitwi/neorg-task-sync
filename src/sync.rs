@@ -1,3 +1,4 @@
+use google_tasks1::api::Task as GTask;
 use indicatif::ProgressIterator;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
@@ -10,7 +11,7 @@ use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
 use crate::progress_bar::style_progress_bar_count;
-use crate::tasks::{get_tasks, task_complete, task_create, Task};
+use crate::tasks::{get_tasks, task_complete, task_create, task_update_title, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
@@ -135,26 +136,20 @@ struct SyncStats {
 
 #[derive(Debug, Clone)]
 struct Diff {
-    newer_local: Vec<Arc<str>>,
-    newer_remote: Vec<Arc<str>>,
+    newer_local: HashMap<Arc<str>, Arc<str>>,
+    newer_remote: HashMap<Arc<str>, Arc<str>>,
 }
 
 fn compute_diff(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
     let todos: HashMap<Arc<str>, &Todo> = local
         .todos
         .iter()
-        .filter_map(|t| {
-            if let Some(id) = t.id.clone() {
-                Some((id, t))
-            } else {
-                None
-            }
-        })
+        .filter_map(|t| t.id.clone().map(|id| (id, t)))
         .collect();
     let tasks: HashMap<Arc<str>, &Task> = remote.iter().map(|t| (t.id.clone(), t)).collect();
 
-    let mut newer_local: Vec<Arc<str>> = Vec::new();
-    let mut newer_remote: Vec<Arc<str>> = Vec::new();
+    let mut newer_local: HashMap<Arc<str>, Arc<str>> = HashMap::new();
+    let mut newer_remote: HashMap<Arc<str>, Arc<str>> = HashMap::new();
 
     for (id, todo) in todos {
         let task = match (tasks.get(&id), todo.state) {
@@ -175,9 +170,9 @@ fn compute_diff(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
         }
 
         if task.modified_at < local.modified_at {
-            newer_local.push(id);
+            newer_local.insert(id, todo.content.clone());
         } else {
-            newer_remote.push(id);
+            newer_remote.insert(id, task.title.clone());
         }
     }
     Ok(Diff {
@@ -282,7 +277,26 @@ impl Syncer {
             num_push_new,
         };
 
-        if stats.modified_file() {
+        let diff = compute_diff(&norg, &tasks_after[..])?;
+
+        for (id, title) in diff.newer_local {
+            let new_gtask: GTask =
+                task_update_title(auth.clone(), &self.tasklist, &id, &title).await?;
+            let task = Task::try_from(&new_gtask)?;
+            let idx = idx_by_task_id(&tasks_after[..], &id);
+            tasks_after[idx] = task;
+        }
+
+        let has_updates_remote = !diff.newer_remote.is_empty();
+        let updates: Vec<_> = diff
+            .newer_remote
+            .into_iter()
+            .map(|(id, t)| (norg.idx_by_todo_id(&id), t))
+            .collect();
+
+        norg.update_task_titles(updates)?;
+
+        if stats.modified_file() || has_updates_remote {
             norg.backup()?;
             norg.write()?;
         }
@@ -305,6 +319,14 @@ impl Syncer {
             tasklist,
         }
     }
+}
+
+pub fn idx_by_task_id(tasks: &[Task], id: &str) -> usize {
+    tasks
+        .iter()
+        .enumerate()
+        .find_map(|(idx, t)| if t.id.as_ref() == id { Some(idx) } else { None })
+        .unwrap()
 }
 
 // Sync completed tasks from remote to neorg

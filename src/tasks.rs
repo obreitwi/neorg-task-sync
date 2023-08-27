@@ -40,7 +40,7 @@ impl TryFrom<&GTask> for Task {
                 .map(|s| s.as_str().into())
                 .unwrap_or_else(|| Arc::from(String::new())),
             modified_at: DateTime::parse_from_rfc3339(
-                &task.updated.as_ref().expect("no updated time"),
+                task.updated.as_ref().expect("no updated time"),
             )?
             .into(),
         })
@@ -182,12 +182,6 @@ pub async fn task_update_title(
 ) -> Result<GTask, Error> {
     let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
 
-    if gtask.completed.is_some() {
-        log::warn!(
-            "Task already completed: {}",
-            gtask.title.as_deref().unwrap_or(task)
-        )
-    }
     gtask.title = Some(title.into());
 
     let hub = create_hub(auth);

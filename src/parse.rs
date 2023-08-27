@@ -204,6 +204,20 @@ impl ParsedNorg {
         Ok(())
     }
 
+    pub fn idx_by_todo_id(&self, id: &str) -> usize {
+        self.todos
+            .iter()
+            .enumerate()
+            .find_map(|(idx, t)| {
+                if t.id.clone().unwrap().as_ref() == id {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    }
+
     pub fn open(file: &Path) -> Result<Self, Error> {
         let metadata = fs::metadata(file).during("reading metadata")?;
         let source_code = fs::read_to_string(file).during("reading norg file")?;
