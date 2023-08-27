@@ -201,7 +201,7 @@ impl Syncer {
                 .iter()
                 .enumerate()
                 .filter_map(|(idx, t)| {
-                    if missing.iter().find(|m| m.id == t.id).is_some() {
+                    if missing.iter().any(|m| m.id == t.id) {
                         Some(idx)
                     } else {
                         None
