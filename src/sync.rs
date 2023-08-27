@@ -1,5 +1,5 @@
 use indicatif::ProgressIterator;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -131,6 +131,59 @@ struct SyncStats {
     num_push_completed: usize,
     num_pull_new: usize,
     num_push_new: usize,
+}
+
+#[derive(Debug, Clone)]
+struct Diff {
+    newer_local: Vec<Arc<str>>,
+    newer_remote: Vec<Arc<str>>,
+}
+
+fn compute_diff(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
+    let todos: HashMap<Arc<str>, &Todo> = local
+        .todos
+        .iter()
+        .filter_map(|t| {
+            if let Some(id) = t.id.clone() {
+                Some((id, t))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let tasks: HashMap<Arc<str>, &Task> = remote.iter().map(|t| (t.id.clone(), t)).collect();
+
+    let mut newer_local: Vec<Arc<str>> = Vec::new();
+    let mut newer_remote: Vec<Arc<str>> = Vec::new();
+
+    for (id, todo) in todos {
+        let task = match (tasks.get(&id), todo.state) {
+            (Some(task), _) => task,
+            (None, State::Done) => {
+                // it's okay if completed remote task are missing
+                continue;
+            }
+            (None, _) => {
+                return Err(Error::NotFound {
+                    what: format!("remote task for todo '{}'", todo.content),
+                });
+            }
+        };
+
+        if task.title.trim() == todo.content.trim() {
+            continue;
+        }
+
+        if task.modified_at < local.modified_at {
+            newer_local.push(id);
+        } else {
+            newer_remote.push(id);
+        }
+    }
+    Ok(Diff {
+        newer_local,
+        newer_remote,
+    })
 }
 
 impl std::fmt::Display for SyncStats {
