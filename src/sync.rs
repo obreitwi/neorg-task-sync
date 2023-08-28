@@ -132,6 +132,8 @@ struct SyncStats {
     num_push_completed: usize,
     num_pull_new: usize,
     num_push_new: usize,
+    num_newer_local: usize,
+    num_newer_remote: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -183,23 +185,31 @@ fn compute_diff(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
 
 impl std::fmt::Display for SyncStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{file}: pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new tasks",
+        write!(f, "{file}: pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new, updated {newer_remote} local, updated {newer_local} remote tasks",
         file=self.file.display(),
         pull_completed=self.num_pull_completed,
         push_completed=self.num_push_completed,
         pull_new=self.num_pull_new,
         push_new=self.num_push_new,
+        newer_local=self.num_newer_local,
+        newer_remote =self.num_newer_remote,
         )
     }
 }
 
 impl SyncStats {
     fn any_change(&self) -> bool {
-        (self.num_pull_new + self.num_pull_completed + self.num_push_new + self.num_push_completed)
+        (self.num_pull_new
+            + self.num_pull_completed
+            + self.num_push_new
+            + self.num_push_completed
+            + self.num_newer_local
+            + self.num_newer_remote)
             > 0
     }
     fn modified_file(&self) -> bool {
-        (self.num_pull_new + self.num_pull_completed + self.num_push_new) > 0
+        (self.num_pull_new + self.num_pull_completed + self.num_push_new + self.num_newer_remote)
+            > 0
     }
 }
 
@@ -269,15 +279,18 @@ impl Syncer {
             num_push_new = pushed.len();
             tasks_after.extend(pushed);
         }
+
+        let diff = compute_diff(&norg, &tasks_after[..])?;
+
         let stats = SyncStats {
             file: file.to_path_buf(),
             num_pull_completed,
             num_push_completed,
             num_pull_new,
             num_push_new,
+            num_newer_local: diff.newer_local.len(),
+            num_newer_remote: diff.newer_remote.len(),
         };
-
-        let diff = compute_diff(&norg, &tasks_after[..])?;
 
         for (id, title) in diff.newer_local {
             let new_gtask: GTask =
@@ -287,7 +300,6 @@ impl Syncer {
             tasks_after[idx] = task;
         }
 
-        let has_updates_remote = !diff.newer_remote.is_empty();
         let updates: Vec<_> = diff
             .newer_remote
             .into_iter()
@@ -296,7 +308,7 @@ impl Syncer {
 
         norg.update_task_titles(updates)?;
 
-        if stats.modified_file() || has_updates_remote {
+        if stats.modified_file() {
             norg.backup()?;
             norg.write()?;
         }
