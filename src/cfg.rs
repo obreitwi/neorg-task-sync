@@ -18,6 +18,7 @@ pub struct Config {
     pub tasklist: String,
     pub todo_section_header: String,
     pub ignore_filenames: Vec<String>,
+    pub clear_completed_tasks_older_than_days: Option<usize>,
 }
 
 impl Default for Config {
@@ -26,6 +27,7 @@ impl Default for Config {
             tasklist: String::new(),
             todo_section_header: "TODOs".into(),
             ignore_filenames: vec!["index.norg".into()],
+            clear_completed_tasks_older_than_days: None,
         }
     }
 }
