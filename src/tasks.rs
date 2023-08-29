@@ -1,4 +1,5 @@
 use chrono::DateTime;
+use chrono::Duration;
 use chrono::Utc;
 use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
@@ -89,6 +90,23 @@ pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> 
     tasklists.items.ok_or(Error::NotFound {
         what: "tasklists".into(),
     })
+}
+
+pub async fn clear_tasks(
+    auth: Authenticator,
+    tasklist: &str,
+    tasks: &[Task],
+    cutoff: Duration,
+) -> Result<(), Error> {
+    let hub = create_hub(auth);
+
+    for task in tasks
+        .iter()
+        .filter(|t| t.completed && t.modified_at < Utc::now() + cutoff)
+    {
+        hub.tasks().delete(tasklist, &task.id).doit().await?;
+    }
+    Ok(())
 }
 
 pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>, Error> {
