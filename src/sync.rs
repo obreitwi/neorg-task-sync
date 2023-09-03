@@ -76,7 +76,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         stats.push(result.stats);
     }
 
-    let num_deleted = if let Some(days) = CFG.clear_completed_tasks_older_than_days.clone() {
+    let num_deleted = if let Some(days) = CFG.clear_completed_tasks_older_than_days {
         let (tasks, num_deleted) =
             clear_tasks(auth, &tasklist, tasks, Duration::days(days as i64)).await?;
         log::info!(
@@ -97,7 +97,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         println!(
             "Cleared {} completed tasks older than {} days…",
             num_deleted,
-            CFG.clear_completed_tasks_older_than_days.clone().unwrap()
+            CFG.clear_completed_tasks_older_than_days.unwrap()
         );
     }
 

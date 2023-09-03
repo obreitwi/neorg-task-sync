@@ -406,10 +406,8 @@ impl ParsedNorg {
             );
         }
 
-        self.source_code.splice(
-            todo.bytes.state.start..todo.bytes.state.end,
-            [b'x'].into_iter(),
-        );
+        self.source_code
+            .splice(todo.bytes.state.start..todo.bytes.state.end, [b'x']);
     }
 
     // clear tags for all todo indices listed
