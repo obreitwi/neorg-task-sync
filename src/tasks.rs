@@ -6,12 +6,14 @@ use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
+use indicatif::ProgressIterator;
 use std::sync::Arc;
 
 use crate::auth::Authenticator;
 use crate::error::Error;
 use crate::error::WrapError;
 use crate::parse::Todo;
+use crate::progress_bar::style_progress_bar_count;
 
 #[derive(Debug, Clone)]
 pub struct Task {
@@ -92,21 +94,41 @@ pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> 
     })
 }
 
+// Returns list of kept tasks and number of deleted tasks
 pub async fn clear_tasks(
     auth: Authenticator,
     tasklist: &str,
-    tasks: &[Task],
+    tasks: Vec<Task>,
     cutoff: Duration,
-) -> Result<(), Error> {
+) -> Result<(Vec<Task>, usize), Error> {
     let hub = create_hub(auth);
 
-    for task in tasks
+    if log::log_enabled!(log::Level::Debug) {
+        for t in tasks.iter() {
+            log::debug!(
+                "[{completed}] @{modified_at}: {title}",
+                completed = if t.completed { "x" } else { " " },
+                title = t.title,
+                modified_at = t.modified_at.with_timezone(&chrono::Local)
+            );
+        }
+    }
+
+    let (delete, keep): (Vec<_>, Vec<_>) = tasks
+        .into_iter()
+        .partition(|t| t.completed && t.modified_at < Utc::now() - cutoff);
+
+    for task in delete
         .iter()
-        .filter(|t| t.completed && t.modified_at < Utc::now() + cutoff)
+        .progress_with_style(style_progress_bar_count())
+        .with_message(format!(
+            "Clearing completed tasks older than {} days…",
+            cutoff.num_days()
+        ))
     {
         hub.tasks().delete(tasklist, &task.id).doit().await?;
     }
-    Ok(())
+    Ok((keep, delete.len()))
 }
 
 pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>, Error> {
