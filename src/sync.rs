@@ -1,3 +1,4 @@
+use chrono::Duration;
 use google_tasks1::api::Task as GTask;
 use indicatif::ProgressIterator;
 use std::collections::{HashMap, HashSet};
@@ -11,7 +12,7 @@ use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
 use crate::progress_bar::style_progress_bar_count;
-use crate::tasks::{get_tasks, task_complete, task_create, task_update_title, Task};
+use crate::tasks::{clear_tasks, get_tasks, task_complete, task_create, task_update_title, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
@@ -75,8 +76,29 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
         stats.push(result.stats);
     }
 
+    let num_deleted = if let Some(days) = CFG.clear_completed_tasks_older_than_days.clone() {
+        let (tasks, num_deleted) =
+            clear_tasks(auth, &tasklist, tasks, Duration::days(days as i64)).await?;
+        log::info!(
+            "Number of tasks not completed/old enough yet: {}",
+            tasks.len()
+        );
+        num_deleted
+    } else {
+        log::info!("Not clearing old completed tasks.");
+        0
+    };
+
     for s in stats.iter().filter(|s| s.any_change()) {
         println!("{}", s);
+    }
+
+    if num_deleted > 0 {
+        println!(
+            "Cleared {} completed tasks older than {} days…",
+            num_deleted,
+            CFG.clear_completed_tasks_older_than_days.clone().unwrap()
+        );
     }
 
     Ok(())
