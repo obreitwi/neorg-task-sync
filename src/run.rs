@@ -3,6 +3,7 @@ use clap_complete::generate;
 
 use crate::auth;
 use crate::auth::login;
+use crate::cfg;
 use crate::cfg::CFG;
 use crate::error::Error;
 use crate::error::WrapError;
@@ -28,6 +29,10 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
 
         Command::Config(ref cfg) => {
             match &cfg.command {
+                ConfigCommand::Import(ref opts) => {
+                    cfg::import(opts)?;
+                }
+
                 ConfigCommand::Show => {
                     eprintln!("{:#?}", *CFG);
                 }

@@ -1,11 +1,15 @@
+use once_cell::sync::Lazy;
 use shadow_rs::shadow;
 shadow!(build);
 
+use camino::Utf8PathBuf;
 use clap::{
     crate_authors, crate_description, ArgAction, Args, ColorChoice, Parser, Subcommand, ValueEnum,
 };
 use clap_complete::Shell;
 use std::{path::PathBuf, str};
+
+pub static STDIN: Lazy<Utf8PathBuf> = Lazy::new(|| Utf8PathBuf::from("-"));
 
 #[derive(Parser, Debug)]
 #[command(
@@ -85,11 +89,31 @@ pub struct Config {
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
+    #[command(name = "import")]
+    Import(ImportConfig),
+
     #[command(name = "show")]
     Show,
 
     #[command(name = "tasklist")]
     TaskList(TaskList),
+}
+
+#[derive(Args, Debug)]
+pub struct ImportConfig {
+    /// what to import
+    #[arg()]
+    pub what: ImportTarget,
+
+    /// Read from file
+    #[arg(short, long)]
+    pub file: Option<Utf8PathBuf>,
+}
+
+#[derive(ValueEnum, Debug, Clone)]
+pub enum ImportTarget {
+    #[value(name = "client-secret")]
+    ClientSecret,
 }
 
 #[derive(Args, Debug)]
@@ -194,4 +218,17 @@ pub struct Sync {
 pub struct CompletionOpts {
     /// Shell to generate completions for
     pub shell: Shell,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_stdin_as_pathbuf() {
+        let path = Utf8PathBuf::from("-");
+        eprintln!("parsed: {path}");
+
+        assert_eq!(&path, Lazy::force(&STDIN));
+    }
 }

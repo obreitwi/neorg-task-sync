@@ -31,6 +31,9 @@ pub enum Error {
         source: io::Error,
     },
 
+    #[error("nothing supplied to stdin")]
+    NoStdin,
+
     #[error("found no tasks")]
     NoTasks,
 
@@ -53,6 +56,12 @@ pub enum Error {
     OAuth2 {
         #[from]
         source: yup_oauth2::Error,
+    },
+
+    #[error("failed to parse JSON: {source}")]
+    SerdeJSON {
+        #[from]
+        source: serde_json::Error,
     },
 
     #[error("google tasks api: {source}")]
@@ -114,5 +123,15 @@ where
             context: context_f(),
             what: Box::new(err.into()),
         })
+    }
+}
+
+pub fn handle_load_error(path: &camino::Utf8Path, err: io::Error) -> Error {
+    if err.kind() == io::ErrorKind::NotFound {
+        Error::NotFound {
+            what: path.to_string(),
+        }
+    } else {
+        err.into()
     }
 }
