@@ -7,8 +7,13 @@ use figment::{
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
+use std::io::{BufRead, BufReader, Read};
+use yup_oauth2::parse_application_secret;
 
-use crate::error::{Error, WrapError};
+use crate::{
+    error::{handle_load_error, Error, WrapError},
+    opts::{ImportConfig, ImportTarget, STDIN},
+};
 
 pub static CFG: Lazy<Config> = Lazy::new(|| Config::load().during("reading config").unwrap());
 static BASE_DIRS: Lazy<BaseDirs> = Lazy::new(|| BaseDirs::new().expect("failed to get base dirs"));
@@ -74,5 +79,43 @@ impl Config {
             .join(Json::file(config_fallback_name()))
             .join(Serialized::defaults(Config::default()))
             .extract()?)
+    }
+}
+
+pub fn import(opts: &ImportConfig) -> Result<(), Error> {
+    use ImportTarget as T;
+    match opts.what {
+        T::ClientSecret => {
+            let secret: Vec<u8> =
+                if opts.file.is_none() || opts.file.as_ref().unwrap() == Lazy::force(&STDIN) {
+                    if atty::is(atty::Stream::Stdin) {
+                        return Err(Error::NoStdin);
+                    }
+                    BufReader::new(std::io::stdin().lock())
+                        .fill_buf()
+                        .during("reading client secret")?
+                        .to_vec()
+                } else {
+                    let path = opts.file.as_ref().unwrap();
+                    let mut buf = Vec::new();
+                    std::fs::File::open(path)
+                        .map_err(|err| handle_load_error(path, err))?
+                        .read_to_end(&mut buf)
+                        .during("reading client secret")?;
+                    buf
+                };
+
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!(
+                    "read secret: {}",
+                    String::from_utf8(secret.clone()).unwrap()
+                );
+            }
+            parse_application_secret(&secret[..]).during("parsing client secret")?;
+            log::debug!("verified application secret");
+            std::fs::write(clientsecret_name(), secret).during("writing client secret")?;
+            log::debug!("wrote client secret to {}", clientsecret_name());
+            Ok(())
+        }
     }
 }
