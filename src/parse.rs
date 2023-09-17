@@ -17,7 +17,6 @@ use crate::error::WrapError;
 use crate::Error;
 
 static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
-    let todo_section_header = &CFG.todo_section_header;
     format!(
         r###"
 (
@@ -37,12 +36,6 @@ static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
  (heading1
    title: (_) @title
  )
- (#match? @title "{todo_section_header}")
-)
-(
- (heading1
-   title: (_) @title
- )
 )
 "###
     ).as_str().into()
@@ -51,7 +44,6 @@ static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
 const TODO_WITH_TAG: usize = 0;
 const TODO_WITHOUT_TAG: usize = 1;
 const TODO_SECTION: usize = 2;
-const OTHER_SECTION: usize = 3;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Todo {
@@ -153,10 +145,11 @@ impl State {
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct QueryIndices {
     content: u32,
+    id_comment: u32,
     id_content: u32,
     // id_tag: u32,
     state: u32,
-    id_comment: u32,
+    title: u32,
 }
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -256,8 +249,7 @@ impl ParsedNorg {
             ))
         };
 
-        let mut line_no_todo_section = usize::MAX;
-        let mut line_no_sections: Vec<usize> = Vec::new();
+        let mut section_line: HashMap<Arc<str>, usize> = HashMap::new();
 
         for (i, m) in cursor
             .matches(&query, tree.root_node(), &source_code[..])
@@ -348,12 +340,15 @@ impl ParsedNorg {
                 }
 
                 TODO_SECTION => {
-                    line_no_todo_section = m.captures[0].node.start_position().row;
+                    let node_title = m
+                        .nodes_for_capture_index(idx.title)
+                        .next()
+                        .expect("no node for title");
+                    let line = node_title.start_position().row;
+                    let title = get_content(&node_title)?;
+                    section_line.insert(title, line as usize);
                 }
 
-                OTHER_SECTION => {
-                    line_no_sections.push(m.captures[0].node.start_position().row);
-                }
                 other => panic!("invalid pattern index: {other}"),
             }
         }
@@ -364,12 +359,16 @@ impl ParsedNorg {
         self.todos = todos;
         self.source_code = source_code;
 
+        let header: Arc<str> = CFG.todo_section_header.clone().into();
+
+        let line_no_todo_section = section_line.get(&header).cloned().unwrap_or(usize::MAX);
         self.line_no = LineNo {
             todo_section: line_no_todo_section,
-            section_after_todo: line_no_sections
-                .into_iter()
-                .filter(|l| *l > line_no_todo_section)
-                .max()
+            section_after_todo: section_line
+                .values()
+                .filter(|l| **l > line_no_todo_section)
+                .min()
+                .cloned()
                 .unwrap_or(usize::MAX),
         };
 
@@ -461,6 +460,7 @@ fn get_query() -> Result<(Arc<Query>, QueryIndices), Error> {
         id_comment: QUERY.capture_index_for_name("task-id-comment").unwrap(),
         // id_tag: query.capture_index_for_name("task-id-tag").unwrap(),
         state: QUERY.capture_index_for_name("state").unwrap(),
+        title: QUERY.capture_index_for_name("title").unwrap(),
     };
 
     Ok((QUERY.clone(), indices))
