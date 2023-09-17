@@ -7,7 +7,10 @@ use figment::{
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
-use std::io::{BufRead, BufReader, Read};
+use std::{
+    io::{BufRead, BufReader, Read},
+    sync::Arc,
+};
 use yup_oauth2::parse_application_secret;
 
 use crate::{
@@ -20,19 +23,19 @@ static BASE_DIRS: Lazy<BaseDirs> = Lazy::new(|| BaseDirs::new().expect("failed t
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub tasklist: String,
-    pub todo_section_header: String,
-    pub ignore_filenames: Vec<String>,
     pub clear_completed_tasks_older_than_days: Option<usize>,
+    pub ignore_filenames: Vec<Arc<str>>,
+    pub tasklist: Arc<str>,
+    pub todo_section_header: Arc<str>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            tasklist: String::new(),
-            todo_section_header: "TODOs".into(),
-            ignore_filenames: vec!["index.norg".into()],
             clear_completed_tasks_older_than_days: None,
+            ignore_filenames: vec!["index.norg".into()],
+            tasklist: Arc::from(""),
+            todo_section_header: "TODOs".into(),
         }
     }
 }

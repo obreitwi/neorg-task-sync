@@ -16,7 +16,7 @@ use crate::tasks::{clear_tasks, get_tasks, task_complete, task_create, task_upda
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
-    let tasklist: Arc<str> = CFG.tasklist.as_str().into();
+    let tasklist = CFG.tasklist.clone();
     let files = {
         let mut files =
             get_files_from_folders(&opts.files_or_folders[..], &CFG.ignore_filenames[..])?;
@@ -104,27 +104,30 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     Ok(())
 }
 
-fn get_files_from_folders<P>(
+fn get_files_from_folders<P, S>(
     files_or_folders: &[P],
-    ignored_filenames: &[String],
+    ignored_filenames: &[S],
 ) -> Result<Vec<PathBuf>, Error>
 where
     P: AsRef<Path>,
+    S: AsRef<str>,
 {
     let mut files = Vec::new();
+    let ignored_filenames: Vec<&str> = ignored_filenames.iter().map(|s| s.as_ref()).collect();
+
     for p in files_or_folders.iter().map(|p| p.as_ref()) {
         if p.is_dir() {
             let paths = fs::read_dir(p)?.collect::<io::Result<Vec<_>>>()?;
 
             for entry in paths {
                 let p = entry.path();
+                let file_name = p
+                    .file_name()
+                    .map(|f| f.to_string_lossy())
+                    .unwrap_or(std::borrow::Cow::Owned(String::new()));
                 if p.is_file()
                     && p.extension() == Some(&OsString::from("norg"))
-                    && !ignored_filenames.contains(
-                        &p.file_name()
-                            .map(|f| f.to_string_lossy().to_string())
-                            .unwrap_or(String::new()),
-                    )
+                    && !ignored_filenames.contains(&file_name.as_ref())
                 {
                     files.push(p);
                 }
