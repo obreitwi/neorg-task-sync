@@ -17,8 +17,7 @@ use crate::error::WrapError;
 use crate::Error;
 
 static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
-    format!(
-        r###"
+    r##"
 (
  (unordered_list1
    state: (detached_modifier_extension [(todo_item_undone) (todo_item_done) (todo_item_pending)] @state )
@@ -37,8 +36,7 @@ static QUERY_TODO: Lazy<Arc<str>> = Lazy::new(|| {
    title: (_) @title
  )
 )
-"###
-    ).as_str().into()
+"##.into()
 });
 
 const TODO_WITH_TAG: usize = 0;
