@@ -154,18 +154,18 @@ struct QueryIndices {
 pub struct ParsedNorg {
     source_code: Vec<u8>,
     pub todos: Vec<Todo>,
-    pub line_no: LineNo,
+    pub line_number: LineNumbers,
     pub filename: PathBuf,
     pub modified_at: DateTime<Utc>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct LineNo {
+pub struct LineNumbers {
     pub todo_section: usize,
     pub section_after_todo: usize,
 }
 
-impl Default for LineNo {
+impl Default for LineNumbers {
     fn default() -> Self {
         Self {
             todo_section: usize::MAX,
@@ -247,7 +247,7 @@ impl ParsedNorg {
             ))
         };
 
-        let mut section_line: HashMap<Arc<str>, usize> = HashMap::new();
+        let mut section_to_line: HashMap<Arc<str>, usize> = HashMap::new();
 
         for (i, m) in cursor
             .matches(&query, tree.root_node(), &source_code[..])
@@ -255,11 +255,13 @@ impl ParsedNorg {
         {
             match m.pattern_index {
                 TODO_WITH_TAG | TODO_WITHOUT_TAG => {
-                    log::debug!("Match #{i} [{type}]: {m:#?}", type=if m.pattern_index == TODO_WITH_TAG {
-                    "with tag"
-                    } else {
-                    "without tag"
-                    });
+                    if log::log_enabled!(log::Level::Debug) {
+                        log::debug!("Match #{i} [{type}]: {m:#?}", type=if m.pattern_index == TODO_WITH_TAG {
+                        "with tag"
+                        } else {
+                        "without tag"
+                        });
+                    }
 
                     let node_state = m
                         .nodes_for_capture_index(idx.state)
@@ -344,7 +346,7 @@ impl ParsedNorg {
                         .expect("no node for title");
                     let line = node_title.start_position().row;
                     let title = get_content(&node_title)?;
-                    section_line.insert(title, line as usize);
+                    section_to_line.insert(title, line);
                 }
 
                 other => panic!("invalid pattern index: {other}"),
@@ -357,14 +359,14 @@ impl ParsedNorg {
         self.todos = todos;
         self.source_code = source_code;
 
-        let header: Arc<str> = CFG.todo_section_header.clone().into();
+        let header: Arc<str> = CFG.section_todos.clone();
 
-        let line_no_todo_section = section_line.get(&header).cloned().unwrap_or(usize::MAX);
-        self.line_no = LineNo {
-            todo_section: line_no_todo_section,
-            section_after_todo: section_line
+        let line_todo_section = section_to_line.get(&header).cloned().unwrap_or(usize::MAX);
+        self.line_number = LineNumbers {
+            todo_section: line_todo_section,
+            section_after_todo: section_to_line
                 .values()
-                .filter(|l| **l > line_no_todo_section)
+                .filter(|l| **l > line_todo_section)
                 .min()
                 .cloned()
                 .unwrap_or(usize::MAX),
