@@ -12,7 +12,7 @@ use crate::cfg::CFG;
 use crate::opts::Sync as SyncOpts;
 use crate::parse::{ParsedNorg, State, Todo};
 use crate::progress_bar::style_progress_bar_count;
-use crate::tasks::{clear_tasks, get_tasks, task_complete, task_create, task_update_title, Task};
+use crate::tasks::{clear_tasks, get_tasks, task_complete, task_create, task_update, Task};
 use crate::Error;
 
 pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Error> {
@@ -163,49 +163,55 @@ struct SyncStats {
 
 #[derive(Debug, Clone)]
 struct Diff {
-    newer_local: HashMap<Arc<str>, Arc<str>>,
-    newer_remote: HashMap<Arc<str>, Arc<str>>,
+    newer_local: HashMap<Arc<str>, Todo>,
+    newer_remote: HashMap<Arc<str>, Task>,
 }
 
-fn compute_diff(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
-    let todos: HashMap<Arc<str>, &Todo> = local
-        .todos
-        .iter()
-        .filter_map(|t| t.id.clone().map(|id| (id, t)))
-        .collect();
-    let tasks: HashMap<Arc<str>, &Task> = remote.iter().map(|t| (t.id.clone(), t)).collect();
+impl Diff {
+    fn compute(local: &ParsedNorg, remote: &[Task]) -> Result<Diff, Error> {
+        let todos: HashMap<Arc<str>, &Todo> = local
+            .todos
+            .iter()
+            .filter_map(|t| t.id.clone().map(|id| (id, t)))
+            .collect();
+        let tasks: HashMap<Arc<str>, &Task> = remote.iter().map(|t| (t.id.clone(), t)).collect();
 
-    let mut newer_local: HashMap<Arc<str>, Arc<str>> = HashMap::new();
-    let mut newer_remote: HashMap<Arc<str>, Arc<str>> = HashMap::new();
+        let mut newer_local = HashMap::new();
+        let mut newer_remote = HashMap::new();
 
-    for (id, todo) in todos {
-        let task = match (tasks.get(&id), todo.state) {
-            (Some(task), _) => task,
-            (None, State::Done) => {
-                // it's okay if completed remote task are missing
-                continue;
+        for (id, todo) in todos {
+            let task = match (tasks.get(&id), todo.state) {
+                (Some(task), _) => task,
+                (None, State::Done) => {
+                    // it's okay if completed remote task are missing
+                    continue;
+                }
+                (None, _) => {
+                    return Err(Error::NotFound {
+                        what: format!("remote task for todo '{}'", todo.content),
+                    });
+                }
+            };
+
+            let title_differs = task.title.trim() != todo.content.trim();
+            let local_newer = local.modified_at < task.modified_at;
+            let due_date_differs = task.due_at != todo.due_at;
+
+            match (title_differs || due_date_differs, local_newer) {
+                (true, true) => {
+                    newer_local.insert(id, todo.clone());
+                }
+                (true, false) => {
+                    newer_remote.insert(id, (**task).clone());
+                }
+                (_, _) => {}
             }
-            (None, _) => {
-                return Err(Error::NotFound {
-                    what: format!("remote task for todo '{}'", todo.content),
-                });
-            }
-        };
-
-        if task.title.trim() == todo.content.trim() {
-            continue;
         }
-
-        if task.modified_at < local.modified_at {
-            newer_local.insert(id, todo.content.clone());
-        } else {
-            newer_remote.insert(id, task.title.clone());
-        }
+        Ok(Diff {
+            newer_local,
+            newer_remote,
+        })
     }
-    Ok(Diff {
-        newer_local,
-        newer_remote,
-    })
 }
 
 impl std::fmt::Display for SyncStats {
@@ -305,7 +311,7 @@ impl Syncer {
             tasks_after.extend(pushed);
         }
 
-        let diff = compute_diff(&norg, &tasks_after[..])?;
+        let diff = Diff::compute(&norg, &tasks_after[..])?;
 
         let stats = SyncStats {
             file: file.to_path_buf(),
@@ -317,9 +323,8 @@ impl Syncer {
             num_newer_remote: diff.newer_remote.len(),
         };
 
-        for (id, title) in diff.newer_local {
-            let new_gtask: GTask =
-                task_update_title(auth.clone(), &self.tasklist, &id, &title).await?;
+        for (id, todo) in diff.newer_local {
+            let new_gtask: GTask = task_update(auth.clone(), &self.tasklist, &todo).await?;
             let task = Task::try_from(&new_gtask)?;
             let idx = idx_by_task_id(&tasks_after[..], &id);
             tasks_after[idx] = task;
@@ -328,7 +333,7 @@ impl Syncer {
         let updates: Vec<_> = diff
             .newer_remote
             .into_iter()
-            .map(|(id, t)| (norg.idx_by_todo_id(&id), t))
+            .map(|(id, t)| (norg.idx_by_todo_id(&id), t.title.clone()))
             .collect();
 
         norg.update_task_titles(updates)?;
@@ -450,8 +455,8 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
     for (i, task) in tasks_to_create.enumerate() {
         let line_to_insert = match (
             norg.todos.is_empty(),
-            norg.line_no.todo_section,
-            norg.line_no.section_after_todo,
+            norg.line_number.todo_section,
+            norg.line_number.section_after_todo,
         ) {
             (false, usize::MAX, usize::MAX) => norg.todos.last().unwrap().line + 1,
             (false, section_todo, section_next) => {

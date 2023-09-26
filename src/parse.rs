@@ -1,5 +1,8 @@
 use chrono::DateTime;
-use chrono::Utc;
+use chrono::Local;
+use chrono::NaiveDate;
+use chrono::NaiveDateTime;
+use chrono::NaiveTime;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
@@ -53,6 +56,7 @@ pub struct Todo {
     pub bytes: TodoBytes,
     // positions that operate in a single line, points stay valid until the given line is modified
     pub in_line: TodoInLine,
+    pub due_at: Option<NaiveDate>,
 }
 
 impl Todo {
@@ -64,6 +68,14 @@ impl Todo {
             )
             .into_bytes(),
         )
+    }
+
+    pub fn due_at_fmt(&self) -> Option<String> {
+        self.due_at.map(|d| {
+            NaiveDateTime::new(d, NaiveTime::default())
+                .and_utc()
+                .to_rfc3339()
+        })
     }
 }
 
@@ -156,7 +168,7 @@ pub struct ParsedNorg {
     pub todos: Vec<Todo>,
     pub line_number: LineNumbers,
     pub filename: PathBuf,
-    pub modified_at: DateTime<Utc>,
+    pub modified_at: DateTime<Local>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -200,7 +212,7 @@ impl ParsedNorg {
             .iter()
             .enumerate()
             .find_map(|(idx, t)| {
-                if t.id.clone().unwrap().as_ref() == id {
+                if t.id.is_some() && t.id.clone().unwrap().as_ref() == id {
                     Some(idx)
                 } else {
                     None
@@ -223,6 +235,20 @@ impl ParsedNorg {
         };
         new.reparse(source_code.as_bytes().to_vec())?;
         Ok(new)
+    }
+
+    // Get day that this file governs, if it's parseable
+    fn parse_filename_day(&self) -> Result<NaiveDate, Error> {
+        Ok(NaiveDate::parse_from_str(
+            &self
+                .filename
+                .with_extension("")
+                .file_name()
+                .map(|s| s.to_string_lossy())
+                .unwrap_or_default(),
+            "%Y-%m-%d",
+        )
+        .during("parsing filename as date")?)
     }
 
     pub fn reparse(&mut self, source_code: Vec<u8>) -> Result<(), Error> {
@@ -315,6 +341,7 @@ impl ParsedNorg {
                                 state,
                                 bytes,
                                 in_line,
+                                due_at: None,
                             }
                         }
                         TODO_WITHOUT_TAG => {
@@ -330,6 +357,7 @@ impl ParsedNorg {
                                 state,
                                 bytes,
                                 in_line,
+                                due_at: None,
                             }
                         }
 
@@ -372,6 +400,18 @@ impl ParsedNorg {
                 .unwrap_or(usize::MAX),
         };
 
+        match self.set_due_date(&section_to_line) {
+            Ok(()) => {}
+            Err(Error::NotFound { what }) => {
+                log::debug!(
+                    "did not find {what} in {file}",
+                    file = self.filename.display()
+                );
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        }
         Ok(())
     }
 
@@ -442,8 +482,44 @@ impl ParsedNorg {
             source_code.extend(l.into_iter());
             source_code.push(b'\n');
         }
-
         self.reparse(source_code)
+    }
+
+    // set due date if requested
+    fn set_due_date(&mut self, section_to_line: &HashMap<Arc<str>, usize>) -> Result<(), Error> {
+        if CFG.section_todos_till_end_of_day.is_none() {
+            return Ok(());
+        }
+        let header = CFG.section_todos_till_end_of_day.clone().unwrap();
+
+        let line_header = section_to_line
+            .get(&header)
+            .cloned()
+            .ok_or_else(|| Error::NotFound {
+                what: format!("section: {header}"),
+            })?;
+
+        let line_next = section_to_line
+            .values()
+            .filter(|l| **l > line_header)
+            .min()
+            .cloned()
+            .unwrap_or(usize::MAX);
+
+        let day = self.parse_filename_day()?;
+
+        for todo in self
+            .todos
+            .iter_mut()
+            .filter(|t| line_header < t.line && t.line < line_next)
+        {
+            todo.due_at = Some(day);
+        }
+
+        // During sync:
+        // Check if due date differs -> Update
+
+        Ok(())
     }
 }
 
