@@ -70,6 +70,9 @@ pub enum Error {
         source: google_tasks1::Error,
     },
 
+    #[error("cannot sync todo without id: {content}")]
+    TodoNoID { content: String },
+
     #[error("setting tree-sitter language: {source}")]
     TreeSitterLanguage {
         #[from]

@@ -26,7 +26,8 @@ pub struct Config {
     pub clear_completed_tasks_older_than_days: Option<usize>,
     pub ignore_filenames: Vec<Arc<str>>,
     pub tasklist: Arc<str>,
-    pub todo_section_header: Arc<str>,
+    pub section_todos: Arc<str>,
+    pub section_todos_till_end_of_day: Option<Arc<str>>,
 }
 
 impl Default for Config {
@@ -35,7 +36,8 @@ impl Default for Config {
             clear_completed_tasks_older_than_days: None,
             ignore_filenames: vec!["index.norg".into()],
             tasklist: Arc::from(""),
-            todo_section_header: "TODOs".into(),
+            section_todos: "TODOs".into(),
+            section_todos_till_end_of_day: None,
         }
     }
 }

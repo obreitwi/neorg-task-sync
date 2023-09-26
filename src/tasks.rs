@@ -1,6 +1,7 @@
 use chrono::DateTime;
 use chrono::Duration;
-use chrono::Utc;
+use chrono::Local;
+use chrono::NaiveDate;
 use google_tasks1::api::Task as GTask;
 use google_tasks1::api::TaskList;
 use google_tasks1::TasksHub;
@@ -20,7 +21,8 @@ pub struct Task {
     pub completed: bool,
     pub id: Arc<str>,
     pub title: Arc<str>,
-    pub modified_at: DateTime<Utc>,
+    pub modified_at: DateTime<Local>,
+    pub due_at: Option<NaiveDate>,
 }
 
 impl TryFrom<&GTask> for Task {
@@ -46,6 +48,10 @@ impl TryFrom<&GTask> for Task {
                 task.updated.as_ref().expect("no updated time"),
             )?
             .into(),
+            due_at: task
+                .due
+                .as_ref()
+                .and_then(|d| DateTime::parse_from_rfc3339(d).ok().map(|d| d.date_naive())),
         })
     }
 }
@@ -116,7 +122,7 @@ pub async fn clear_tasks(
 
     let (delete, keep): (Vec<_>, Vec<_>) = tasks
         .into_iter()
-        .partition(|t| t.completed && t.modified_at < Utc::now() - cutoff);
+        .partition(|t| t.completed && t.modified_at < Local::now() - cutoff);
 
     for task in delete
         .iter()
@@ -148,7 +154,7 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
         } else {
             req
         };
-        let (response, got_tasks) = req.doit().await.during("get tasks")?;
+        let (_response, got_tasks) = req.doit().await.during("get tasks")?;
 
         page_token = got_tasks.next_page_token;
 
@@ -216,6 +222,7 @@ pub async fn task_create(
     let hub = create_hub(auth);
     let req = GTask {
         title: Some(todo.content.to_string()),
+        due: todo.due_at_fmt(),
         ..GTask::default()
     };
     let (_response, task) = hub
@@ -229,24 +236,33 @@ pub async fn task_create(
     Task::try_from(&task)
 }
 
-pub async fn task_update_title(
-    auth: Authenticator,
-    tasklist: &str,
-    task: &str,
-    title: &str,
-) -> Result<GTask, Error> {
-    let mut gtask = get_single_task(auth.clone(), tasklist, task).await?;
+pub async fn task_update(auth: Authenticator, tasklist: &str, todo: &Todo) -> Result<GTask, Error> {
+    if todo.id.is_none() {
+        return Err(Error::TodoNoID {
+            content: todo.content.to_string(),
+        });
+    }
 
-    gtask.title = Some(title.into());
+    let mut gtask = get_single_task(auth.clone(), tasklist, todo.id.as_ref().unwrap()).await?;
+
+    gtask.title = Some(todo.content.to_string());
+    gtask.due = todo.due_at_fmt();
 
     let hub = create_hub(auth);
 
     let (_response, task) = hub
         .tasks()
-        .update(gtask, tasklist, task)
+        .update(gtask, tasklist, todo.id.as_ref().unwrap())
         .doit()
         .await
-        .during("setting task done")?;
+        .during_f(|| {
+            format!(
+                "updaing task: [{id}] {content}",
+                id = todo.id.as_ref().unwrap(),
+                content = todo.content
+            )
+            .into()
+        })?;
 
     Ok(task)
 }
