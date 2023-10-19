@@ -148,9 +148,24 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
         } else {
             req
         };
-        let (_response, got_tasks) = req.doit().await.during("get tasks")?;
+        let (response, got_tasks) = req.doit().await.during("get tasks")?;
 
         page_token = got_tasks.next_page_token;
+
+        if log::log_enabled!(log::Level::Debug)
+            && got_tasks
+                .items
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+        {
+            log::debug!(
+                "Got {num} tasks:",
+                num = got_tasks.items.as_ref().unwrap().len()
+            );
+            for (i, t) in got_tasks.items.as_ref().unwrap().iter().enumerate() {
+                log::debug!("Google Task #{}: {:#?}", i + 1, t);
+            }
+        }
 
         tasks.extend(
             got_tasks
