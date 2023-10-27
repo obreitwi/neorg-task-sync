@@ -482,6 +482,12 @@ impl ParsedNorg {
             source_code.extend(l.into_iter());
             source_code.push(b'\n');
         }
+
+        match source_code.pop() {
+            Some(b'\n') | None => {}
+            Some(c) => source_code.push(c),
+        }
+
         self.reparse(source_code)
     }
 
