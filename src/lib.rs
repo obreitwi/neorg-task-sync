@@ -5,6 +5,7 @@ mod opts;
 mod parse;
 mod progress_bar;
 mod run;
+mod select;
 mod sync;
 mod tasks;
 
