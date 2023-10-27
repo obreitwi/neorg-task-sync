@@ -197,14 +197,15 @@ impl Diff {
             let local_newer = local.modified_at < task.modified_at;
             let due_date_differs = task.due_at != todo.due_at;
 
-            match (title_differs || due_date_differs, local_newer) {
-                (true, true) => {
+            // for now we only sync differing due date to remote
+            match (title_differs, due_date_differs, local_newer) {
+                (true, false, true) => {
                     newer_local.insert(id, todo.clone());
                 }
-                (true, false) => {
+                (true, _, false) => {
                     newer_remote.insert(id, (**task).clone());
                 }
-                (_, _) => {}
+                (_, _, _) => {}
             }
         }
         Ok(Diff {
