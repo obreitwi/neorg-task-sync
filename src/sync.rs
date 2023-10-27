@@ -199,10 +199,10 @@ impl Diff {
 
             // for now we only sync differing due date to remote
             match (title_differs, due_date_differs, local_newer) {
-                (true, false, true) => {
+                (true, _, true) => {
                     newer_local.insert(id, todo.clone());
                 }
-                (true, _, false) => {
+                (true, _, false) | (_, true, false) => {
                     newer_remote.insert(id, (**task).clone());
                 }
                 (_, _, _) => {}
