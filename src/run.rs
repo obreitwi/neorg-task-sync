@@ -1,5 +1,6 @@
 use clap::CommandFactory;
 use clap_complete::generate;
+use std::io::{self, Write};
 
 use crate::auth;
 use crate::auth::login;
@@ -86,9 +87,14 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
         },
         Command::Sync(ref sync) => perform_sync(auth::login().await?, sync).await?,
 
-        Command::Tasks => {
-            for task in get_tasks(auth::login().await?, &CFG.tasklist).await? {
-                log::info!("{task:#?}");
+        Command::Tasks(ref opts) => {
+            let tasks = get_tasks(auth::login().await?, &CFG.tasklist).await?;
+            if opts.json {
+                io::stdout().write_all(serde_json::to_string(&tasks)?.as_bytes())?;
+            } else {
+                for task in tasks {
+                    log::info!("{task:#?}");
+                }
             }
         }
     }

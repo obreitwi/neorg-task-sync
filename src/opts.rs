@@ -66,7 +66,14 @@ pub enum Command {
 
     /// Check which tasks are defined upstream (mainly for debugging)
     #[command(name = "tasks")]
-    Tasks,
+    Tasks(Tasks),
+}
+
+#[derive(Args, Debug)]
+pub struct Tasks {
+    /// output as json
+    #[arg(short, long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]

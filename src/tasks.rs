@@ -8,6 +8,8 @@ use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 use indicatif::ProgressIterator;
+use serde::Deserialize;
+use serde::Serialize;
 use std::sync::Arc;
 
 use crate::auth::Authenticator;
@@ -16,7 +18,7 @@ use crate::error::WrapError;
 use crate::parse::Todo;
 use crate::progress_bar::style_progress_bar_count;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub completed: bool,
     pub id: Arc<str>,
