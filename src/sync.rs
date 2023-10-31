@@ -194,7 +194,7 @@ impl Diff {
             };
 
             let title_differs = task.title.trim() != todo.content.trim();
-            let local_newer = local.modified_at < task.modified_at;
+            let local_newer = task.modified_at < local.modified_at;
             // for now we only sync differing due date to remote
             if title_differs {
                 if local_newer {
