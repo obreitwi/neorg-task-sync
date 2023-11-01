@@ -12,9 +12,16 @@ pub enum Error {
         wrapped: WrappedError,
     },
 
+    #[error("conversion {from}→{to}: {why}")]
+    Conversion {
+        from: Arc<str>,
+        to: Arc<str>,
+        why: Arc<str>,
+    },
+
     // INDIVIDUAL ERRORS
     #[error("error logging in: {message}")]
-    Login { message: String },
+    Login { message: Arc<str> },
 
     #[error("reading config: {source}")]
     Figment {

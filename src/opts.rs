@@ -127,6 +127,10 @@ pub enum ImportTarget {
 pub struct TaskList {
     #[arg(value_enum)]
     pub operation: ConfigOperation,
+
+    /// Value (for set operation)
+    #[arg()]
+    pub value: Option<String>,
 }
 
 #[derive(ValueEnum, Debug, Clone)]

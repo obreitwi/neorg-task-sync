@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 use std::{
+    fs::{rename, File},
     io::{BufRead, BufReader, Read},
     sync::Arc,
 };
@@ -39,6 +40,15 @@ impl Default for Config {
             section_todos: "TODOs".into(),
             section_todos_till_end_of_day: None,
         }
+    }
+}
+
+impl Config {
+    pub fn store_fallback(&self) -> Result<(), Error> {
+        let tmp = config_fallback_name().with_extension(".json.new");
+        serde_json::to_writer(File::create(&tmp)?, self)?;
+        rename(tmp, config_fallback_name())?;
+        Ok(())
     }
 }
 

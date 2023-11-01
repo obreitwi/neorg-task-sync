@@ -1,6 +1,8 @@
 use clap::CommandFactory;
 use clap_complete::generate;
+use console::style;
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use crate::auth;
 use crate::auth::login;
@@ -15,10 +17,12 @@ use crate::opts::ConfigOperation;
 use crate::opts::GenerateTarget;
 use crate::opts::Opts;
 use crate::parse::ParsedNorg;
+use crate::select::select_plain_single;
 use crate::sync::perform_sync;
 use crate::tasks::get_tasklists;
 use crate::tasks::get_tasks;
 use crate::tasks::print_tasklists;
+use crate::tasks::TaskList;
 
 pub async fn run(opts: &Opts) -> Result<(), Error> {
     match opts.command {
@@ -40,14 +44,34 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
 
                 ConfigCommand::TaskList(ref tl) => match &tl.operation {
                     ConfigOperation::List => {
-                        let tls = get_tasklists(auth::login().await?).await?;
+                        let tls: Vec<TaskList> = get_tasklists(auth::login().await?).await?;
                         print_tasklists(&tls[..])?;
                     }
-                    other => {
-                        return Err(Error::NotSupported {
-                            arg: other.to_string(),
-                            command: "config tasklist".into(),
-                        });
+                    ConfigOperation::Get => {
+                        let tls: Vec<TaskList> = get_tasklists(auth::login().await?).await?;
+                        let tl = tls.iter().find(|tl| tl.id == CFG.tasklist).ok_or_else(|| {
+                            Error::NotFound {
+                                what: "locally configured tasklist on remote site".into(),
+                            }
+                        })?;
+                        println!(
+                            "Configured {}: {title}",
+                            style("tasklist").bold(),
+                            title = tl.title
+                        );
+                    }
+                    ConfigOperation::Set => {
+                        let value: Arc<str> = match tl.value {
+                            Some(ref value) => value.clone().into(),
+                            None => {
+                                let tls: Vec<TaskList> =
+                                    get_tasklists(auth::login().await?).await?;
+                                select_plain_single(tls).unwrap().id
+                            }
+                        };
+                        let mut cfg = CFG.clone();
+                        cfg.tasklist = value;
+                        cfg.store_fallback()?;
                     }
                 },
             };

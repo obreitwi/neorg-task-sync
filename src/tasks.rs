@@ -2,14 +2,17 @@ use chrono::DateTime;
 use chrono::Duration;
 use chrono::Local;
 use chrono::NaiveDate;
+use console::style;
 use google_tasks1::api::Task as GTask;
-use google_tasks1::api::TaskList;
+use google_tasks1::api::TaskList as GTaskList;
 use google_tasks1::TasksHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 use indicatif::ProgressIterator;
 use serde::Deserialize;
 use serde::Serialize;
+use skim::SkimItem;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::auth::Authenticator;
@@ -58,6 +61,40 @@ impl TryFrom<&GTask> for Task {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TaskList {
+    pub id: Arc<str>,
+    pub title: Arc<str>,
+}
+
+impl TryFrom<&GTaskList> for TaskList {
+    type Error = Error;
+    fn try_from(gtl: &GTaskList) -> Result<Self, Error> {
+        Ok(TaskList {
+            id: gtl
+                .id
+                .as_ref()
+                .map(|id| id.clone().into())
+                .ok_or_else(|| Error::Conversion {
+                    from: "GTaskList".into(),
+                    to: "TaskList".into(),
+                    why: "no id".into(),
+                })?,
+            title: gtl
+                .title
+                .as_ref()
+                .map(|t| t.clone().into())
+                .unwrap_or("".into()),
+        })
+    }
+}
+
+impl SkimItem for TaskList {
+    fn text(&self) -> Cow<str> {
+        Cow::Borrowed(&self.title)
+    }
+}
+
 fn create_hub(auth: Authenticator) -> TasksHub<HttpsConnector<HttpConnector>> {
     TasksHub::new(
         hyper::Client::builder().build(
@@ -97,9 +134,11 @@ pub async fn get_tasklists(auth: Authenticator) -> Result<Vec<TaskList>, Error> 
 
     log::debug!("got response:\n{response:#?}");
 
-    tasklists.items.ok_or(Error::NotFound {
+    let tasklists = tasklists.items.ok_or(Error::NotFound {
         what: "tasklists".into(),
-    })
+    })?;
+
+    tasklists.iter().map(|tl| tl.try_into()).collect()
 }
 
 // Returns list of kept tasks and number of deleted tasks
@@ -270,18 +309,11 @@ pub async fn task_update(auth: Authenticator, tasklist: &str, todo: &Todo) -> Re
 }
 
 pub fn print_tasklists(tasklists: &[TaskList]) -> Result<(), Error> {
-    let maxlen = tasklists
-        .iter()
-        .map(|tl| tl.id.as_ref().map(|t| t.len()).unwrap_or(0))
-        .max()
-        .unwrap_or(0);
+    let maxlen = tasklists.iter().map(|tl| tl.id.len()).max().unwrap_or(0);
+    eprintln!("Configured {}:", style("tasklists").bold());
     for tl in tasklists.iter() {
-        let id = tl.id.as_ref().ok_or(Error::NotFound {
-            what: "id for tasklist".into(),
-        })?;
-        let title = tl.title.as_ref().ok_or(Error::NotFound {
-            what: "title for tasklist".into(),
-        })?;
+        let id = tl.id.clone();
+        let title = tl.title.clone();
         println!("{id:<maxlen$} {title}");
     }
     Ok(())
