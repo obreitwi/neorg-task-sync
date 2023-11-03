@@ -66,7 +66,12 @@ pub async fn run(opts: &Opts) -> Result<(), Error> {
                             None => {
                                 let tls: Vec<TaskList> =
                                     get_tasklists(auth::login().await?).await?;
-                                select_plain_single(tls).unwrap().id
+                                let choice = select_plain_single(tls).expect("no selection");
+                                eprintln!(
+                                    "Setting tasklist: {title}",
+                                    title = style(&choice.title).bold()
+                                );
+                                choice.id
                             }
                         };
                         let mut cfg = CFG.clone();
