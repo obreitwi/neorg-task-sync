@@ -6,14 +6,30 @@ Sync your Neorg TODO-items to Google tasks and vice-versa.
 
 </div>
 
+## What & why?
+
+I keep notes via [Neorg's journal feature](https://github.com/nvim-neorg/neorg/wiki/Journal).
+However, I would also like to add TODOs when I am away from the PC (for example after spontaneous meetings).
+Futhermore, I like to go through and update older TODOs while commuting.
+For obvious reasons, Neorg's journaling feature cannot solve this, but Google Tasks does.
+
+Hence, the _obvious_ solution was to write a quick syncer.
+_TODO: Expand…_
+
+
 ## Installation
 
 Unfortunately, Google does not permit shipping client IDs with open source code.
-Hence, the installation procedure is twofold:
+Hence, the installation procedure is:
 1. Install locally
 2. Create your own Google project & OAuth token
 
 ### Install locally
+1. Install as `neovim` plugin:
+```vim
+Plug 'obreitwi/neorg-task-sync' " vim-plug
+```
+2. Navigate to the plugin folder (or clone again to install):
 ```bash
 git clone https://github.com/obreitwi/neorg-task-sync.git
 cd neorg-task-sync
