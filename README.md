@@ -6,18 +6,31 @@ Sync your Neorg TODO-items to Google tasks and vice-versa.
 
 </div>
 
-## What & why?
+## What?
+
+`neorg-task-sync` syncs all uncompleted todo-entries from your neorg journal to a google task list and vice versa.
+It allows you to double-check/complete todos on your mobile phone while commuting.
+Alternatively, this workflow allows for noting down todos while away from your computer and still have them appear in the newest neorg journal file.
+
+By default, new tasks are synced to the latest journal entry .
+Tasks are synced to the last (optionally first) file you specify on the command line, optionally to a specific section (by default `TODO`).
+This ensures that the latest journal file receives new remote tasks.
+
+While syncing the your journal is the intended use-case it also allows syncing to any other file. 
+
+If configured, 
+
+## Why?
 
 I keep notes via [Neorg's journal feature](https://github.com/nvim-neorg/neorg/wiki/Journal).
 However, I would also like to add TODOs when I am away from the PC (for example after spontaneous meetings).
-Futhermore, I like to go through and update older TODOs while commuting.
+Furthermore, I like to go through and update older TODOs while commuting.
 For obvious reasons, Neorg's journaling feature cannot solve this, but Google Tasks does.
 
 Hence, the _obvious_ solution was to write a quick syncer.
-_TODO: Expand…_
+The required metadata is concealed via treesitter-rules.
 
-
-## Installation
+## How? (Installation)
 
 Unfortunately, Google does not permit shipping client IDs with open source code.
 Hence, the installation procedure is:
@@ -50,3 +63,7 @@ mkdir -p ~/.config/neorg-task-sync
 ```
 ~/.config/neorg-task-sync/clientsecret.json
 ```
+
+## Configuraiton
+
+TODO
