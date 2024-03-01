@@ -63,10 +63,44 @@ mkdir -p ~/.config/neorg-task-sync
 ```
 ~/.config/neorg-task-sync/clientsecret.json
 ```
+### Required configuration
 
-## Configuraiton
+The only required confguration is to set a remote task list.
+It can be set interactively via `neorg-task-sync config tasklist set`.
 
-TODO
+### Run your first sync
+Run your first sync via
+```
+$ neorg-task-sync <path to your neorg journal folder>
+```
+
+Tip: Set `alias nts=neorg-task-sync` for your shell.
+
+## Full Configuration
+
+`neorg-task-sync` can be configured in several ways:
+* `${XDG_CONFIG_HOME}/neorg-task-sync/config.yaml` (defaults to: `$HOME/.config/neorg-task-sync-config.yaml`)
+* by specifing an env variable for each config setting, prefixed with `NEORG_TASK_SYNC_` (e.g. `NEORG_TASK_SYNC_TASKLIST` to specify a tasklist)
+* the only required setting (which tasklist to sync to) can be set interactively via `neorg-task-sync config tasklist set`
+
+### Config values (with defaults)
+```yaml
+# clear google tasks older than n days, disabled if not specified
+clear_completed_tasks_older_than_days: <disabled>
+
+# ignore the following files when syncing
+ignore_filenames: ["index.norg"]
+
+# which google task list to sync to, set via `neorg-task-list config tasklist set`
+tasklist: ""
+
+# which section to sync todos to, alternatively they are appended to the file
+section_todos: "TODOs"
+
+# section containing todos tha should be done till end-of-day
+# these todos will be synced with a same-day due date
+section_todos_till_end_of_day: ""
+```
 
 # Command-Line Help for `neorg-task-sync`
 
