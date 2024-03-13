@@ -106,6 +106,8 @@ section_todos_till_end_of_day: ""
 
 This document contains the help content for the `neorg-task-sync` command-line program.
 
+<details>
+
 **Command Overview:**
 
 * [`neorg-task-sync`↴](#neorg-task-sync)
@@ -310,3 +312,5 @@ Check which tasks are defined upstream (mainly for debugging)
     This document was generated automatically by
     <a href="https://crates.io/crates/clap-markdown"><code>clap-markdown</code></a>.
 </i></small>
+
+</details>
