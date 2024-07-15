@@ -1,0 +1,2 @@
+* TODOs
+  - ( ) currently have to install via `cargo install --locked --path $PWD`
