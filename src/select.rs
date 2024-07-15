@@ -24,8 +24,8 @@ pub fn select_with_regex<E: SkimItem + Clone>(
     let re = Regex::new(regex)?;
     let filtered = entries
         .iter()
+        .filter(|&e| re.is_match(&e.text()))
         .cloned()
-        .filter(|e| re.is_match(&e.text()))
         .collect();
     Ok(filtered)
 }
