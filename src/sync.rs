@@ -1,6 +1,8 @@
 use chrono::Duration;
+use console::{Style, StyledObject};
 use google_tasks1::api::Task as GTask;
 use indicatif::ProgressIterator;
+use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -219,16 +221,34 @@ impl Diff {
     }
 }
 
+static DONE: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_DONE.apply_to("✓").bold());
+static NEW: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_NEW.apply_to("✻").bold());
+static PULL: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_PULL.apply_to("↘").bold());
+static PUSH: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_PUSH.apply_to("↗").bold());
+static UPDATE: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_UPDATE.apply_to("⟳").bold());
+
+static STYLE_DONE: Lazy<Style> = Lazy::new(|| Style::new().green());
+static STYLE_NEW: Lazy<Style> = Lazy::new(|| Style::new().cyan());
+static STYLE_PULL: Lazy<Style> = Lazy::new(|| Style::new().red());
+static STYLE_PUSH: Lazy<Style> = Lazy::new(|| Style::new().magenta());
+static STYLE_UPDATE: Lazy<Style> = Lazy::new(|| Style::new().yellow());
+
 impl std::fmt::Display for SyncStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{file}: pulled {pull_completed} completed, pushed {push_completed} completed, pulled {pull_new} new, pushed {push_new} new, updated {newer_remote} local, updated {newer_local} remote tasks",
+        let completed = DONE.to_string();
+        let new = NEW.to_string();
+        let pulled = PULL.to_string();
+        let pushed = PUSH.to_string();
+        let updated = UPDATE.to_string();
+
+        write!(f, "{file}: {pulled} {pull_completed} {completed}, {pushed} {push_completed} {completed}, {pulled} {pull_new} {new}, {pushed} {push_new} {new}, {updated} {newer_remote} local, {updated} {newer_local} remote tasks",
         file=self.file.display(),
-        pull_completed=self.num_pull_completed,
-        push_completed=self.num_push_completed,
-        pull_new=self.num_pull_new,
-        push_new=self.num_push_new,
-        newer_local=self.num_newer_local,
-        newer_remote =self.num_newer_remote,
+        pull_completed=STYLE_DONE.apply_to(self.num_pull_completed),
+        push_completed=STYLE_DONE.apply_to(self.num_push_completed),
+        pull_new=STYLE_PULL.apply_to(self.num_pull_new),
+        push_new=STYLE_PUSH.apply_to(self.num_push_new),
+        newer_local=STYLE_UPDATE.apply_to(self.num_newer_local),
+        newer_remote=STYLE_UPDATE.apply_to(self.num_newer_remote),
         )
     }
 }
