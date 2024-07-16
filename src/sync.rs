@@ -229,7 +229,7 @@ static UPDATE: Lazy<StyledObject<&str>> = Lazy::new(|| STYLE_UPDATE.apply_to("‚ü
 
 static STYLE_DONE: Lazy<Style> = Lazy::new(|| Style::new().green());
 static STYLE_NEW: Lazy<Style> = Lazy::new(|| Style::new().cyan());
-static STYLE_PULL: Lazy<Style> = Lazy::new(|| Style::new().red());
+static STYLE_PULL: Lazy<Style> = Lazy::new(|| Style::new().blue());
 static STYLE_PUSH: Lazy<Style> = Lazy::new(|| Style::new().magenta());
 static STYLE_UPDATE: Lazy<Style> = Lazy::new(|| Style::new().yellow());
 
@@ -241,12 +241,12 @@ impl std::fmt::Display for SyncStats {
         let pushed = PUSH.to_string();
         let updated = UPDATE.to_string();
 
-        write!(f, "{file}: {pulled} {pull_completed} {completed}, {pushed} {push_completed} {completed}, {pulled} {pull_new} {new}, {pushed} {push_new} {new}, {updated} {newer_remote} local, {updated} {newer_local} remote tasks",
+        write!(f, "{file}: {completed} {pulled}{pull_completed} {pushed}{push_completed} | {new} {pulled}{pull_new} {pushed}{push_new} | {updated} {pulled}{newer_remote} {pushed}{newer_local}",
         file=self.file.display(),
         pull_completed=STYLE_DONE.apply_to(self.num_pull_completed),
         push_completed=STYLE_DONE.apply_to(self.num_push_completed),
-        pull_new=STYLE_PULL.apply_to(self.num_pull_new),
-        push_new=STYLE_PUSH.apply_to(self.num_push_new),
+        pull_new=STYLE_NEW.apply_to(self.num_pull_new),
+        push_new=STYLE_NEW.apply_to(self.num_push_new),
         newer_local=STYLE_UPDATE.apply_to(self.num_newer_local),
         newer_remote=STYLE_UPDATE.apply_to(self.num_newer_remote),
         )
