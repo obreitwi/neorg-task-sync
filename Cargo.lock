@@ -2166,7 +2166,7 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-norg"
-version = "0.1.0"
+version = "0.2.4"
 dependencies = [
  "cc",
  "tree-sitter",
