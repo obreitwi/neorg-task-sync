@@ -46,13 +46,7 @@
         strictDeps = true;
 
         buildInputs =
-          [
-            # Add additional build inputs here
-            pkgs.openssl
-            pkgs.xorg.libxcb
-            pkgs.zlib
-          ]
-          ++ lib.optionals pkgs.stdenv.isDarwin [
+          lib.optionals pkgs.stdenv.isDarwin [
             # Additional darwin specific inputs can be set here
             pkgs.libiconv
           ];
