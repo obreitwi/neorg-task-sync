@@ -241,7 +241,7 @@ impl std::fmt::Display for SyncStats {
         let pushed = PUSH.to_string();
         let updated = UPDATE.to_string();
 
-        write!(f, "{file}: {completed} {pulled}{pull_completed} {pushed}{push_completed} | {new} {pulled}{pull_new} {pushed}{push_new} | {updated} {pulled}{newer_remote} {pushed}{newer_local}",
+        write!(f, "{file}: {completed} {pulled} {pull_completed} {pushed} {push_completed} | {new} {pulled} {pull_new} {pushed} {push_new} | {updated} {pulled} {newer_remote} {pushed} {newer_local}",
         file=self.file.display(),
         pull_completed=STYLE_DONE.apply_to(self.num_pull_completed),
         push_completed=STYLE_DONE.apply_to(self.num_push_completed),
