@@ -30,7 +30,7 @@ regex = "1.10.2"
 serde = { version = "1.0.189", features = ["derive", "rc"] }
 serde_json = "1.0.107"
 serde_yaml = "0.9.25"
-shadow-rs = "0.23.0"
+shadow-rs = "1"
 simple_logger = { version = "4.2.0", features = ["threads"] }
 skim = "0.10.4"
 thiserror = "1.0.49"
@@ -40,5 +40,5 @@ tree-sitter-norg = { git = "https://github.com/nvim-neorg/tree-sitter-norg", tag
 yup-oauth2 = "8.3.0"
 
 [build-dependencies]
-shadow-rs = "0.23.0"
+shadow-rs = "1"
 cc = "*"
