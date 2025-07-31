@@ -488,7 +488,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
                 norg.todos
                     .iter()
                     .filter(|t| section_todo < t.line && t.line < section_next)
-                    .last()
+                    .next_back()
                     .map(|t| t.line)
                     .unwrap_or(section_todo)
                     + 1
@@ -503,7 +503,7 @@ fn sync_pull_new(tasks: &[Task], norg: &mut ParsedNorg) -> Result<usize, Error> 
 
         lines.insert(
             line_to_insert,
-            format!("  - ( ) {title} %#taskid {id}%").into_bytes(),
+            format!("- ( ) {title} %#taskid {id}%").into_bytes(),
         );
         count += 1;
     }
