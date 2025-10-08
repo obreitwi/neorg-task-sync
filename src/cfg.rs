@@ -4,6 +4,7 @@ use figment::{
     providers::{Env, Format, Json, Serialized, Yaml},
     Figment,
 };
+use google_tasks1::oauth2::parse_application_secret;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -12,7 +13,6 @@ use std::{
     io::{BufRead, BufReader, Read},
     sync::Arc,
 };
-use yup_oauth2::parse_application_secret;
 
 use crate::{
     error::{handle_load_error, Error, WrapError},

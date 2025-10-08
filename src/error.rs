@@ -26,7 +26,7 @@ pub enum Error {
     #[error("reading config: {source}")]
     Figment {
         #[from]
-        source: figment::Error,
+        source: Box<figment::Error>,
     },
 
     #[error("invalid file extension: {ext}")]
@@ -62,7 +62,7 @@ pub enum Error {
     #[error("oauth2: {source}")]
     OAuth2 {
         #[from]
-        source: yup_oauth2::Error,
+        source: google_tasks1::oauth2::Error,
     },
 
     #[error("failed to parse JSON: {source}")]
@@ -74,7 +74,7 @@ pub enum Error {
     #[error("google tasks api: {source}")]
     TasksAPI {
         #[from]
-        source: google_tasks1::Error,
+        source: Box<google_tasks1::Error>,
     },
 
     #[error("cannot sync todo without id: {content}")]
@@ -97,6 +97,22 @@ pub enum Error {
         #[from]
         source: std::str::Utf8Error,
     },
+}
+
+impl From<figment::Error> for Error {
+    fn from(value: figment::Error) -> Self {
+        Error::Figment {
+            source: Box::new(value),
+        }
+    }
+}
+
+impl From<google_tasks1::Error> for Error {
+    fn from(value: google_tasks1::Error) -> Self {
+        Error::TasksAPI {
+            source: Box::new(value),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
