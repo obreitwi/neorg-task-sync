@@ -197,7 +197,7 @@ impl ParsedNorg {
     pub fn backup(&self) -> Result<(), Error> {
         let full = fs::canonicalize(&self.filename)?;
         let full_name = full.to_string_lossy().replace('/', "%");
-        let copy_to = env::temp_dir().join(format!("neorg_task_sync_{}", full_name));
+        let copy_to = env::temp_dir().join(format!("neorg_task_sync_{full_name}"));
         fs::copy(&self.filename, copy_to)?;
         Ok(())
     }
@@ -263,7 +263,7 @@ impl ParsedNorg {
             .parse(&source_code[..], None)
             .ok_or_else(|| Error::Parse)?;
 
-        log::debug!("Tree: {:#?}", tree);
+        log::debug!("Tree: {tree:#?}");
 
         let mut cursor = QueryCursor::new();
 
@@ -439,10 +439,7 @@ impl ParsedNorg {
         let todo = &self.todos[idx];
         let len_state = todo.bytes.state.end - todo.bytes.state.start;
         if len_state != 1 {
-            log::warn!(
-                "expected single byte for state char, found {} bytes",
-                len_state
-            );
+            log::warn!("expected single byte for state char, found {len_state} bytes",);
         }
 
         self.source_code

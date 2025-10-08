@@ -92,7 +92,7 @@ pub async fn perform_sync(auth: Authenticator, opts: &SyncOpts) -> Result<(), Er
     };
 
     for s in stats.iter().filter(|s| s.any_change()) {
-        println!("{}", s);
+        println!("{s}");
     }
 
     if num_deleted > 0 {

@@ -228,7 +228,7 @@ pub async fn get_tasks(auth: Authenticator, tasklist: &str) -> Result<Vec<Task>,
         }
     }
 
-    log::debug!("{:#?}", tasks);
+    log::debug!("{tasks:#?}");
 
     Ok(tasks)
 }
