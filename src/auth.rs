@@ -17,11 +17,16 @@ pub type Authenticator =
 pub async fn login() -> Result<Authenticator, Error> {
     // Read application secret from a file. Sometimes it's easier to compile it directly into
     // the binary. The clientsecret file contains JSON like `{"installed":{"client_id": ... }}`
-    //
     log::debug!("reading client secret: {}", clientsecret_name());
     let secret = yup_oauth2::read_application_secret(clientsecret_name())
         .await
         .during("reading clientsecret")?;
+
+    if let Some(token_folder) = std::path::PathBuf::from(tokencache_name()).parent() {
+        if !token_folder.exists() {
+            std::fs::create_dir_all(token_folder).during("creating folder for token")?;
+        }
+    }
 
     // Create an authenticator that uses an InstalledFlow to authenticate. The
     // authentication tokens are persisted to a file named tokencache.json. The
